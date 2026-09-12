@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lipi.ai Voice Agent</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="top">
+    <div>
+      <p class="eyebrow">Lipi.ai · Voice AI agent</p>
+      <h1>Live outbound call</h1>
+      <p class="sub">Not a chatbot. Speak — the agent talks back, handles objections, and tries to book a meeting.</p>
+    </div>
+    <p class="mode">Browser voice now · Phone via Vapi when keys are set</p>
+  </header>
+
+  <main class="stage">
+    <aside class="dialer">
+      <h2>Who to call</h2>
+      <p class="hint">Accent is locked before the call starts.</p>
+      <div id="leads" class="list"></div>
+    </aside>
+
+    <section class="phone" aria-live="polite">
+      <p id="status" class="status">Ready</p>
+      <p id="via-badge" class="via-badge">Script locked · Groq only hears intent</p>
+      <canvas id="wave" width="320" height="72" aria-hidden="true"></canvas>
+      <div id="avatar" class="avatar">AI</div>
+      <h2 id="name">Select a contact</h2>
+      <p id="meta" class="meta">Lipi.ai outbound voice agent</p>
+      <p id="timer" class="timer">00:00</p>
+      <p id="caption" class="caption">Click Test speaker, then Call. After she talks, say okay — or type it.</p>
+
+      <form id="reply-bar" class="reply-bar" hidden>
+        <button id="talk-btn" class="talk-btn" type="button">Talk</button>
+        <input id="typed-reply" type="text" placeholder="Type okay / haan if mic misses you" autocomplete="off" />
+        <button type="submit">Send</button>
+      </form>
+
+      <div class="controls">
+        <button id="test-btn" class="test-btn" type="button">Test speaker</button>
+        <button id="call-btn" class="call-btn" type="button">Call</button>
+        <button id="hangup-btn" class="hangup" type="button" hidden>End</button>
+      </div>
+    </section>
+
+    <aside class="after">
+      <h2>After the call</h2>
+      <div id="result" class="result">
+        <p class="hint">When a call ends, the transcript opens here. Click a recent call to read it again.</p>
+      </div>
+      <h2 class="spaced">Recent</h2>
+      <div id="calls" class="list"></div>
+    </aside>
+  </main>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

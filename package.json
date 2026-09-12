@@ -1,0 +1,26 @@
+{
+  "name": "lipi-ai-call-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Lipi.ai V1 outbound sales voice agent — Doc 9A platform approach",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "sim": "tsx src/cli.ts sim",
+    "dial": "tsx src/cli.ts dial",
+    "tunnel": "ngrok http 3000",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.20.2",
+    "csv-parse": "^7.0.2",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "msedge-tts": "^2.0.7",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2",
+    "zod": "^4.6.2"
+  }
+}
