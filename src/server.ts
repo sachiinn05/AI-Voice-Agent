@@ -7,9 +7,13 @@ import { addToDnc } from "./compliance/dnc.js";
 import { scoreCall } from "./dispo/scorer.js";
 import { loadCalls, loadLeads, saveCall } from "./leads/store.js";
 import { planDials, dialLead } from "./orchestrator/dialer.js";
-import { classifyIntent, groqEnabled, groqStatus, steerBackToScript } from "./llm/groq.js";
-import { isOffScript } from "./script/intent.js";
-import { createSession, nudge, replaceLastAgentLine, replyTo, startCall } from "./script/stateMachine.js";
+import { handleTurn } from "./conversation/turn.js";
+import { pingMongo, mongoStatus } from "./db/mongo.js";
+import { embeddingStatus } from "./embeddings/service.js";
+import { groqEnabled, groqStatus } from "./llm/groq.js";
+import { dashboardRouter } from "./routes/dashboard.js";
+import { knowledgeRouter } from "./routes/knowledge.js";
+import { createSession, nudge, startCall } from "./script/stateMachine.js";
 import { LeadSchema, type Session } from "./types.js";
 import { synthesizeSpeech } from "./tts.js";
 import { describeRouting, routeVoice } from "./voice/routing.js";
@@ -19,14 +23,21 @@ const sessions = new Map<string, Session>();
 const app = express();
 app.use(express.json({ limit: "2mb" }));
 app.use(express.static(path.join(config.root, "public")));
+app.use(knowledgeRouter);
+app.use(dashboardRouter);
 
-app.get("/api/health", (_req, res) => {
+app.get("/api/health", async (_req, res) => {
+  const mongo = mongoStatus();
+  if (mongo.configured) await pingMongo();
   res.json({
     ok: true,
-    product: "Lipi.ai V1 outbound sales bot",
-    approach: "Doc 9A platform + local state machine",
+    product: "Lipi.ai one-company voice agent",
+    approach: "existing script + RAG for company knowledge",
+    company: { id: config.companyId, name: config.companyName },
     voiceRouting: describeRouting(),
     groq: groqStatus(),
+    mongo: mongoStatus(),
+    embeddings: embeddingStatus(),
   });
 });
 
@@ -90,13 +101,7 @@ app.post("/api/simulate/reply", async (req, res) => {
     res.status(404).json({ error: "Unknown callId. Start a simulation first." });
     return;
   }
-  const intent = await classifyIntent(session, text);
-  let agent = replyTo(session, text, intent);
-  if (isOffScript(intent) && !session.ended) {
-    const steered = await steerBackToScript(session, text, agent);
-    replaceLastAgentLine(session, steered);
-    agent = steered;
-  }
+  const turn = await handleTurn(session, text);
   let result = null;
   if (session.ended) {
     result = await scoreCall(session);
@@ -112,12 +117,14 @@ app.post("/api/simulate/reply", async (req, res) => {
   res.json({
     callId,
     state: session.state,
-    agent,
+    agent: turn.agent,
     ended: session.ended,
     objectionsRaised: session.objectionsRaised,
     result,
-    via: groqStatus().lastVia,
-    intent: groqStatus().lastIntent,
+    via: turn.via,
+    intent: turn.intent,
+    route: turn.route,
+    sources: turn.sources,
   });
 });
 

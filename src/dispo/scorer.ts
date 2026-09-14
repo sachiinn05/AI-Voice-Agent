@@ -72,6 +72,7 @@ function heuristicScore(session: Session): CallResult {
     compliance_flags: flags,
     next_action,
     lead: session.lead,
+    knowledge_questions: session.knowledgeQuestions,
   });
 }
 

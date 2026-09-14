@@ -9,17 +9,27 @@
 <body>
   <header class="top">
     <div>
-      <p class="eyebrow">Lipi.ai · Voice AI agent</p>
-      <h1>Live outbound call</h1>
-      <p class="sub">Not a chatbot. Speak — the agent talks back, handles objections, and tries to book a meeting.</p>
+      <p class="eyebrow">Lipi.ai · One-company voice agent</p>
+      <h1>Company voice desk</h1>
+      <p class="sub">The existing voice agent still runs the call. Company PDFs answer knowledge questions. Booking stays on the script.</p>
     </div>
     <p class="mode">Browser voice now · Phone via Vapi when keys are set</p>
   </header>
 
-  <main class="stage">
+  <nav class="tabs" aria-label="Dashboard">
+    <button type="button" class="tab active" data-view="live">Live call</button>
+    <button type="button" class="tab" data-view="overview">Overview</button>
+    <button type="button" class="tab" data-view="conversations">Conversations</button>
+    <button type="button" class="tab" data-view="leads">Leads</button>
+    <button type="button" class="tab" data-view="bookings">Bookings</button>
+    <button type="button" class="tab" data-view="questions">Questions</button>
+    <button type="button" class="tab" data-view="knowledge">Knowledge</button>
+  </nav>
+
+  <main id="view-live" class="stage view">
     <aside class="dialer">
       <h2>Who to call</h2>
-      <p class="hint">Accent is locked before the call starts.</p>
+      <p class="hint">Same company. Three voices. They answer from your uploaded PDFs.</p>
       <div id="leads" class="list"></div>
     </aside>
 
@@ -54,6 +64,65 @@
       <h2 class="spaced">Recent</h2>
       <div id="calls" class="list"></div>
     </aside>
+  </main>
+
+  <main id="view-overview" class="board view hidden">
+    <section class="cards" id="stat-cards"></section>
+    <section class="panel">
+      <h2>Recent activity</h2>
+      <div id="overview-activity" class="list"></div>
+    </section>
+  </main>
+
+  <main id="view-conversations" class="board board-split view hidden">
+    <section class="panel">
+      <h2>Calls</h2>
+      <div id="all-calls" class="list"></div>
+    </section>
+    <section class="panel">
+      <h2>Transcript</h2>
+      <div id="conversation-detail" class="result">
+        <p class="hint">Pick a call to read the conversation.</p>
+      </div>
+    </section>
+  </main>
+
+  <main id="view-leads" class="board view hidden">
+    <section class="panel">
+      <h2>Leads</h2>
+      <div id="lead-table" class="table-wrap"></div>
+    </section>
+  </main>
+
+  <main id="view-bookings" class="board view hidden">
+    <section class="panel">
+      <h2>Booked meetings</h2>
+      <div id="booking-list" class="list"></div>
+    </section>
+  </main>
+
+  <main id="view-questions" class="board view hidden">
+    <section class="panel">
+      <h2>Company questions</h2>
+      <p class="hint">RAG answers from uploaded PDFs, with sources.</p>
+      <div id="question-list" class="list"></div>
+    </section>
+  </main>
+
+  <main id="view-knowledge" class="board view hidden">
+    <section class="panel">
+      <h2>Company knowledge PDFs</h2>
+      <p class="hint">MongoDB is only the storage. The agent answers from PDFs you upload here — company profile, products, pricing, FAQ.</p>
+      <form id="knowledge-form" class="upload">
+        <label class="file-btn" for="pdf-input">Choose PDFs</label>
+        <input id="pdf-input" type="file" accept="application/pdf" multiple hidden />
+        <span id="file-label" class="hint">No files selected</span>
+        <button type="submit">Upload and ingest</button>
+        <button id="reingest-btn" type="button">Re-ingest folder</button>
+      </form>
+      <p id="knowledge-status" class="hint"></p>
+      <div id="document-list" class="list"></div>
+    </section>
   </main>
 
   <script type="module" src="/app.js"></script>

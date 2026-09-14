@@ -71,8 +71,8 @@ function renderLeads() {
       (lead, i) => `
       <button class="lead ${i === selected ? "active" : ""}" data-i="${i}" type="button">
         <strong>${lead.contact_name}</strong>
-        <span class="meta">${lead.company_name} · ${lead.contact_role || "role n/a"}</span>
-        <span class="lang">${lead.preferred_language} · voice call</span>
+        <span class="meta">${lead.contact_role || lead.company_name}</span>
+        <span class="lang">${lead.preferred_language}</span>
       </button>`,
     )
     .join("");
@@ -97,9 +97,10 @@ function escapeHtml(text) {
     .replaceAll('"', "&quot;");
 }
 
-function showResult(result) {
+function showResult(result, target = resultEl) {
+  if (!target) return;
   if (!result) {
-    resultEl.innerHTML =
+    target.innerHTML =
       `<p class="hint">When a call ends, the transcript opens here. Click a recent call to read it again.</p>`;
     return;
   }
@@ -113,10 +114,11 @@ function showResult(result) {
       return `<p class="t-line ${agent ? "t-agent" : "t-you"}"><strong>${agent ? "AI" : "You"}</strong>${escapeHtml(text)}</p>`;
     });
   const meeting = result.meeting_details?.date || result.meeting_details?.time || "";
-  resultEl.innerHTML = `
+  target.innerHTML = `
     <p class="dispo">${escapeHtml(result.disposition)} · score ${escapeHtml(result.lead_score)}</p>
     <p class="hint">${escapeHtml(result.call_summary || "")}</p>
     ${meeting ? `<p class="hint">Booked: ${escapeHtml(meeting)}</p>` : ""}
+    ${sourceChips(result.knowledge_questions?.flatMap((q) => q.sources || []) || [])}
     <div class="transcript">${lines.join("") || `<p class="hint">No transcript saved for this call.</p>`}</div>
   `;
 }
@@ -187,9 +189,17 @@ async function ensureMic() {
   }
 }
 
-function showVia(via) {
+function showVia(via, sources) {
   if (!viaBadge) return;
-  if (via === "steer") {
+  if (via === "rag") {
+    const labels = (sources || [])
+      .slice(0, 2)
+      .map((s) => (s.pageNumber ? `${s.fileName} p.${s.pageNumber}` : s.fileName));
+    viaBadge.textContent = labels.length
+      ? `Company knowledge · ${labels.join(" · ")}`
+      : "Company knowledge · grounded in PDFs";
+    viaBadge.className = "via-badge rag";
+  } else if (via === "steer") {
     viaBadge.textContent = "Groq brought them back to the script";
     viaBadge.className = "via-badge groq";
   } else if (via === "groq") {
@@ -201,10 +211,11 @@ function showVia(via) {
   }
 }
 
-async function playAgent(text, via) {
+async function playAgent(text, via, sources) {
   caption("Agent", text);
   setPhase("speaking");
-  showVia(via);
+  showVia(via, sources);
+  if (via === "rag") statusEl.textContent = "Agent speaking · company knowledge";
   if (via === "steer") statusEl.textContent = "Agent speaking · Groq steer";
   if (via === "groq") statusEl.textContent = "Agent speaking · Groq";
   if (via === "script") statusEl.textContent = "Agent speaking · script";
@@ -226,7 +237,7 @@ async function sendUtterance(text) {
     body: JSON.stringify({ callId, text: said }),
   });
   const data = await res.json();
-  await playAgent(data.agent, data.via);
+  await playAgent(data.agent, data.via, data.sources);
   busy = false;
   if (data.ended) {
     await finish(data.result);
@@ -358,7 +369,7 @@ testBtn.addEventListener("click", async () => {
     await unlockAudio();
     await ensureMic();
     setPhase("speaking");
-    await speak("Hi, this is Lipi's AI. You should hear me now. Press Call, then say okay.", lang);
+    await speak("Hi, this is the company AI. You should hear me now. Press Call, then say okay.", lang);
     setPhase("");
     captionEl.textContent = "Speaker works. Press Call, then say okay.";
   } catch {
@@ -397,6 +408,170 @@ function paint() {
   waveTick = requestAnimationFrame(paint);
 }
 paint();
+
+function sourceChips(sources) {
+  if (!sources?.length) return "";
+  return `<div class="sources">${sources
+    .slice(0, 6)
+    .map((s) => `<span class="source-chip">${escapeHtml(s.fileName)}${s.pageNumber ? ` p.${s.pageNumber}` : ""}</span>`)
+    .join("")}</div>`;
+}
+
+function showView(name) {
+  document.querySelectorAll(".view").forEach((el) => el.classList.toggle("hidden", el.id !== `view-${name}`));
+  document.querySelectorAll(".tab").forEach((el) => el.classList.toggle("active", el.dataset.view === name));
+  if (name === "overview") void loadOverview();
+  if (name === "conversations") void loadConversations();
+  if (name === "leads") void loadLeadTable();
+  if (name === "bookings") void loadBookings();
+  if (name === "questions") void loadQuestions();
+  if (name === "knowledge") void loadKnowledge();
+}
+
+async function loadOverview() {
+  const data = await (await fetch("/api/dashboard")).json();
+  const stats = data.stats || {};
+  document.getElementById("stat-cards").innerHTML = [
+    ["Calls", stats.calls],
+    ["Booked", stats.booked],
+    ["Leads", stats.leads],
+    ["Questions", stats.questions],
+    ["PDFs", stats.documents],
+    ["Chunks", stats.chunks],
+  ]
+    .map(([label, value]) => `<div class="card"><strong>${escapeHtml(value ?? 0)}</strong><span>${label}</span></div>`)
+    .join("");
+  document.getElementById("overview-activity").innerHTML = (data.recentCalls || []).length
+    ? data.recentCalls
+        .map(
+          (c) => `<div class="lead"><strong>${escapeHtml(c.disposition)}</strong><span class="meta">${escapeHtml(c.lead?.contact_name || "")} · ${escapeHtml(c.lead?.company_name || "")}</span></div>`,
+        )
+        .join("")
+    : `<p class="hint">No calls yet.</p>`;
+}
+
+async function loadConversations() {
+  const calls = await (await fetch("/api/calls")).json();
+  recentCalls = calls;
+  const list = document.getElementById("all-calls");
+  list.innerHTML = calls.length
+    ? calls
+        .map(
+          (c, i) => `<button class="call-row" data-all="${i}" type="button"><strong>${escapeHtml(c.disposition)}</strong><span class="meta">${escapeHtml(c.lead?.contact_name || "")} · ${escapeHtml(c.lead?.company_name || "")}</span></button>`,
+        )
+        .join("")
+    : `<p class="hint">No conversations yet.</p>`;
+}
+
+document.getElementById("all-calls")?.addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-all]");
+  if (!btn) return;
+  const call = recentCalls[Number(btn.dataset.all)];
+  if (call) showResult(call, document.getElementById("conversation-detail"));
+});
+
+async function loadLeadTable() {
+  const rows = await (await fetch("/api/leads")).json();
+  document.getElementById("lead-table").innerHTML = `
+    <table>
+      <thead><tr><th>Name</th><th>Company</th><th>Role</th><th>Language</th><th>Need</th></tr></thead>
+      <tbody>${rows
+        .map(
+          (lead) => `<tr><td>${escapeHtml(lead.contact_name)}</td><td>${escapeHtml(lead.company_name)}</td><td>${escapeHtml(lead.contact_role || "")}</td><td>${escapeHtml(lead.preferred_language)}</td><td>${escapeHtml(lead.need_for_bot || lead.company_description)}</td></tr>`,
+        )
+        .join("")}</tbody>
+    </table>`;
+}
+
+async function loadBookings() {
+  const rows = await (await fetch("/api/bookings")).json();
+  document.getElementById("booking-list").innerHTML = rows.length
+    ? rows
+        .map(
+          (b) => {
+            const when = [b.meeting?.date, b.meeting?.time].filter(Boolean);
+            const slot = when[0] === when[1] ? when[0] : when.join(" ");
+            return `<div class="lead"><strong>${escapeHtml(b.contactName)} · ${escapeHtml(b.companyName)}</strong><span class="meta">${escapeHtml(slot || "")}</span></div>`;
+          },
+        )
+        .join("")
+    : `<p class="hint">No bookings yet.</p>`;
+}
+
+async function loadQuestions() {
+  const rows = await (await fetch("/api/questions")).json();
+  document.getElementById("question-list").innerHTML = rows.length
+    ? rows
+        .map(
+          (q) => `<div class="lead"><strong>${escapeHtml(q.question)}</strong><span class="meta">${escapeHtml(q.answer)}</span>${sourceChips(q.sources)}${q.grounded ? "" : `<span class="meta">Not enough document coverage</span>`}</div>`,
+        )
+        .join("")
+    : `<p class="hint">No company questions asked yet.</p>`;
+}
+
+async function loadKnowledge() {
+  const data = await (await fetch("/api/knowledge")).json();
+  const status = document.getElementById("knowledge-status");
+  const mongo = data.mongo?.configured ? (data.mongo.connected ? "Mongo connected" : "Mongo configured") : "Mongo not configured — set MONGODB_URI";
+  status.textContent = `${mongo} · embeddings: ${data.embeddings?.provider || "n/a"} · ${data.chunks || 0} chunks`;
+  const docs = data.documents || [];
+  document.getElementById("document-list").innerHTML = docs.length
+    ? docs
+        .map(
+          (doc) => `<div class="lead"><strong>${escapeHtml(doc.fileName)}</strong><span class="meta">${doc.pageCount} pages · ${doc.chunkCount} chunks · ${escapeHtml(doc.status)}</span><button class="danger" data-del="${escapeHtml(doc.documentId)}" data-file="${escapeHtml(doc.fileName)}" type="button">Remove</button></div>`,
+        )
+        .join("")
+    : `<p class="hint">Database is ready, but it has no company documents yet. Choose 3–4 PDFs, then click Upload and ingest.</p>`;
+}
+
+document.getElementById("pdf-input")?.addEventListener("change", (event) => {
+  const input = event.target;
+  const label = document.getElementById("file-label");
+  if (!label) return;
+  const names = [...(input.files || [])].map((file) => file.name);
+  label.textContent = names.length ? names.join(", ") : "No files selected";
+});
+
+document.querySelector(".tabs")?.addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-view]");
+  if (!btn || inCall) return;
+  showView(btn.dataset.view);
+});
+
+document.getElementById("knowledge-form")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const input = document.getElementById("pdf-input");
+  if (!input?.files?.length) return;
+  const body = new FormData();
+  for (const file of input.files) body.append("files", file);
+  const status = document.getElementById("knowledge-status");
+  status.textContent = "Uploading and ingesting…";
+  const res = await fetch("/api/knowledge", { method: "POST", body });
+  const data = await res.json();
+  status.textContent = data.error || (data.errors?.length ? data.errors.join(" · ") : `Ingested ${data.ingested?.length || 0} PDF(s).`);
+  input.value = "";
+  const label = document.getElementById("file-label");
+  if (label) label.textContent = "No files selected";
+  await loadKnowledge();
+});
+
+document.getElementById("reingest-btn")?.addEventListener("click", async () => {
+  const status = document.getElementById("knowledge-status");
+  status.textContent = "Re-ingesting knowledge folder…";
+  const res = await fetch("/api/knowledge/ingest", { method: "POST" });
+  const data = await res.json();
+  status.textContent = data.error || `Ingested ${data.ingested?.length || 0}. ${data.skipped?.length ? data.skipped.join(" · ") : ""}`;
+  await loadKnowledge();
+});
+
+document.getElementById("document-list")?.addEventListener("click", async (event) => {
+  const btn = event.target.closest("[data-del]");
+  if (!btn) return;
+  await fetch(`/api/knowledge/${btn.dataset.del}?fileName=${encodeURIComponent(btn.dataset.file || "")}`, {
+    method: "DELETE",
+  });
+  await loadKnowledge();
+});
 
 loadLeads();
 loadCalls();

@@ -3,7 +3,9 @@ import { stdin, stdout } from "node:process";
 import { scoreCall } from "./dispo/scorer.js";
 import { loadLeads, saveCall } from "./leads/store.js";
 import { dialLead, planDials } from "./orchestrator/dialer.js";
-import { createSession, replyTo, startCall } from "./script/stateMachine.js";
+import { handleTurn } from "./conversation/turn.js";
+import { ingestKnowledgeFolder } from "./documents/ingest.js";
+import { createSession, startCall } from "./script/stateMachine.js";
 import { addToDnc } from "./compliance/dnc.js";
 
 async function simulate() {
@@ -21,8 +23,8 @@ async function simulate() {
   const rl = createInterface({ input: stdin, output: stdout });
   while (!session.ended) {
     const text = await rl.question("You: ");
-    const agent = replyTo(session, text);
-    console.log(`\nAgent: ${agent}\n`);
+    const turn = await handleTurn(session, text);
+    console.log(`\nAgent (${turn.via}/${turn.route}): ${turn.agent}\n`);
   }
   rl.close();
 
@@ -56,10 +58,23 @@ async function dial() {
   console.log(result);
 }
 
+async function ingest() {
+  const result = await ingestKnowledgeFolder();
+  console.log(`Ingested ${result.ingested.length} PDF(s).`);
+  for (const doc of result.ingested) {
+    console.log(`  ${doc.fileName} — ${doc.chunkCount} chunks`);
+  }
+  if (result.skipped.length) {
+    console.log("Skipped:");
+    for (const row of result.skipped) console.log(`  ${row}`);
+  }
+}
+
 const cmd = process.argv[2];
 if (cmd === "sim") await simulate();
 else if (cmd === "dial") await dial();
+else if (cmd === "ingest") await ingest();
 else {
-  console.log("Usage: npm run sim | npm run dial | npm run dev");
+  console.log("Usage: npm run sim | npm run dial | npm run ingest | npm run dev");
   process.exit(1);
 }
