@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { CallState, Intent, Lead, Session, TranscriptTurn } from "../types.js";
+import type { CallState, Intent, KnowledgeSource, Lead, Session, TranscriptTurn } from "../types.js";
 import { detectIntent, isContinue, isOffScript } from "./intent.js";
 import {
   closeLine,
@@ -57,6 +57,7 @@ export function createSession(lead: Lead, callId = randomUUID()): Session {
     startedAt: Date.now(),
     ended: false,
     silenceNudges: 0,
+    knowledgeQuestions: [],
   };
 }
 
@@ -69,11 +70,42 @@ function slots(session: Session): string[] {
   return defaultMeetingSlots(session.lead.preferred_language);
 }
 
-function pickSlot(text: string, options: string[]): string {
+const WEEKDAY_RE = /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i;
+const HOUR_WORDS: Record<string, string> = { eleven: "11", gyarah: "11", three: "3", teen: "3" };
+
+function hoursIn(text: string): Set<string> {
+  const hours = new Set<string>();
+  for (const digit of text.match(/\b\d{1,2}\b/g) ?? []) hours.add(digit);
+  for (const [word, digit] of Object.entries(HOUR_WORDS)) {
+    if (new RegExp(`\\b${word}\\b`, "i").test(text)) hours.add(digit);
+  }
+  return hours;
+}
+
+/**
+ * defaultMeetingSlots() picks the next two actual weekdays, so which one is
+ * "Monday" vs "Tuesday" shifts by the day the call happens. Match against
+ * what was actually offered instead of assuming a fixed first=Monday,
+ * second=Tuesday mapping — that assumption silently booked the wrong day
+ * whenever the real slots landed on any other weekday pair.
+ */
+export function pickSlot(text: string, options: string[]): string {
   const lower = text.toLowerCase();
-  if (/\b(second|doosra|teen|three|tuesday|3)\b/.test(lower) && options[1]) return options[1];
-  if (/\b(first|pehla|gyarah|eleven|monday|11)\b/.test(lower) && options[0]) return options[0];
-  if (options[0] && lower.includes(options[0].toLowerCase().slice(0, 6))) return options[0];
+  const saidHours = hoursIn(lower);
+
+  for (const option of options) {
+    const day = option.match(WEEKDAY_RE)?.[0]?.toLowerCase();
+    if (day && lower.includes(day)) return option;
+  }
+  for (const option of options) {
+    const optionHours = hoursIn(option.toLowerCase());
+    if ([...optionHours].some((h) => saidHours.has(h))) return option;
+  }
+
+  // Ordinal fallback: "the first one" / "the second one" (also Hinglish).
+  if (/\b(second|doosra|dusra)\b/.test(lower) && options[1]) return options[1];
+  if (/\b(first|pehla)\b/.test(lower) && options[0]) return options[0];
+
   return options[0] ?? "the first slot";
 }
 
@@ -155,6 +187,10 @@ export function replyTo(session: Session, prospectText: string, intent?: Intent)
     );
   }
 
+  if (resolved === "booking_request") {
+    return speak(session, "CLOSE", closeLine(lang, slots(session)));
+  }
+
   if (resolved === "wrong_person") {
     return endWith(
       session,
@@ -215,6 +251,59 @@ export function nudge(session: Session): string {
 
 export function scriptQuestionFor(session: Session): string {
   return currentScriptQuestion(session.lead, session.lead.preferred_language, session.state);
+}
+
+/** Knowledge reply that also moves the script forward (used after "okay"). */
+export function advanceWithReply(
+  session: Session,
+  prospectText: string,
+  agentText: string,
+  next: CallState,
+  extras: { via?: TranscriptTurn["via"]; sources?: KnowledgeSource[] } = {},
+): string {
+  if (session.ended) return session.turns.at(-1)?.text ?? "";
+  turn(session, "prospect", prospectText);
+  session.silenceNudges = 0;
+  session.state = next;
+  const entry: TranscriptTurn = {
+    role: "agent",
+    text: agentText,
+    state: next,
+    at: new Date().toISOString(),
+    via: extras.via ?? "rag",
+    sources: extras.sources,
+  };
+  session.turns.push(entry);
+  return agentText;
+}
+
+/** Knowledge / RAG reply: keep the current script beat, do not advance state. */
+export function recordSideReply(
+  session: Session,
+  prospectText: string,
+  agentText: string,
+  extras: { via?: TranscriptTurn["via"]; sources?: KnowledgeSource[] } = {},
+): string {
+  if (session.ended) return session.turns.at(-1)?.text ?? "";
+  turn(session, "prospect", prospectText);
+  session.silenceNudges = 0;
+  const entry: TranscriptTurn = {
+    role: "agent",
+    text: agentText,
+    state: session.state,
+    at: new Date().toISOString(),
+    via: extras.via ?? "rag",
+    sources: extras.sources,
+  };
+  session.turns.push(entry);
+  return agentText;
+}
+
+/** Caller asked to book before the script reached CLOSE. */
+export function offerBooking(session: Session, prospectText: string): string {
+  turn(session, "prospect", prospectText);
+  session.silenceNudges = 0;
+  return speak(session, "CLOSE", closeLine(session.lead.preferred_language, slots(session)));
 }
 
 export function replaceLastAgentLine(session: Session, text: string): void {
