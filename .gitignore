@@ -3,6 +3,11 @@ node_modules
 dist
 data/calls.json
 data/leads.csv
+data/questions.json
 data/dnc.local.csv
+knowledge/*.pdf
 .DS_Store
 *.log
+
+# Personal notes, not project source
+Lipi-AI-Complete-Interview-Handbook.pdf

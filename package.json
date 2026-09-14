@@ -9,18 +9,29 @@
     "start": "tsx src/server.ts",
     "sim": "tsx src/cli.ts sim",
     "dial": "tsx src/cli.ts dial",
+    "ingest": "tsx src/cli.ts ingest",
     "tunnel": "ngrok http 3000",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@types/express": "^5.0.6",
+    "@types/multer": "^1.4.13",
     "@types/node": "^22.20.2",
+    "@types/pdfkit": "^0.17.6",
     "csv-parse": "^7.0.2",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "mongodb": "^6.20.0",
     "msedge-tts": "^2.0.7",
+    "multer": "^2.0.2",
+    "pdf-parse": "^1.1.1",
+    "pdfkit": "^0.20.2",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2",
     "zod": "^4.6.2"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.0"
   }
 }
