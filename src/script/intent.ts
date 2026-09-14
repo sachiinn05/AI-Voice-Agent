@@ -18,6 +18,14 @@ const PATTERNS: Array<{ intent: Intent; re: RegExp }> = [
   { intent: "is_this_ai", re: /\b(are you (an? )?(ai|bot|robot)|is this (an? )?(ai|bot|recording)|kya (yeh )?ai)\b/i },
   { intent: "who_gave_number", re: /\b(who gave|where did you get|number kahan|kaise mila)\b/i },
   { intent: "already_use_competitor", re: /\b(already (have|use)|pehle se|we use (vapi|retell|bolna|exotel)|competitor)\b/i },
+  {
+    intent: "booking_request",
+    re: /\b(book (me )?(a )?(demo|meeting|call|slot)|schedule (a )?(demo|meeting|call)|demo book|meeting book)\b/i,
+  },
+  {
+    intent: "company_knowledge",
+    re: /\b(what (services|products|plans?|pricing|refund|policy|hours|features)|tell me about|do you (offer|provide|support|have)|refund|warranty|guarantee|policy|services?|products?)\b/i,
+  },
   { intent: "how_much", re: /\b(how much|pricing|price|cost|expensive|kitna|price kya)\b/i },
   { intent: "send_email", re: /\b(send (me )?(an? )?email|email me|email bhej|whatsapp)\b/i },
   { intent: "call_later", re: /\b(call (me )?(later|back)|baad mein|next week|kal call)\b/i },
@@ -34,9 +42,9 @@ const PATTERNS: Array<{ intent: Intent; re: RegExp }> = [
   { intent: "give_availability", re: /\b(i('m| am) free|available|thursday|friday|wednesday)\b/i },
   {
     intent: "acknowledge",
-    re: /\b(okay|ok|haan|han|hmm|hum|ji|yes|yeah|yep|sure|theek| achha|accha|boliye|go on|tell me|continue)\b/i,
+    re: /\b(okay|ok|haan|han|haanji|hmm|hum|ji|yes|yeah|yep|sure|alright|right|no problem|theek|achha|accha|bilkul|boliye|go on|go ahead|tell me|continue)\b/i,
   },
-  { intent: "interested", re: /\b(interested|sounds good|let'?s do|karte hain|chalo)\b/i },
+  { intent: "interested", re: /\b(interested|sounds good|sounds interesting|let'?s do|karte hain|chalo|why not)\b/i },
 ];
 
 export function detectIntent(text: string): Intent {

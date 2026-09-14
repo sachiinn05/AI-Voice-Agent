@@ -54,7 +54,7 @@ async function discoverModel(): Promise<string> {
   return resolvedModel;
 }
 
-function stripReasoning(raw: string): string {
+export function stripReasoning(raw: string): string {
   let text = raw ?? "";
   if (text.includes("</think>")) text = text.split("</think>").pop() ?? text;
   if (text.includes("</thinking>")) text = text.split("</thinking>").pop() ?? text;
@@ -97,17 +97,30 @@ async function requestChat(
     Authorization: `Bearer ${config.groqApiKey}`,
     "Content-Type": "application/json",
   };
-  const base = { model, temperature: options.temperature ?? 0, messages };
+  // MODEL_CANDIDATES are all Groq reasoning models. Left unconfigured, they
+  // spend the whole token budget on hidden chain-of-thought and never reach
+  // the actual answer — the caller then sees empty/truncated content and
+  // silently falls back to the keyword matcher. Keep reasoning short and out
+  // of `content` so the token budget is spent on the real answer.
+  const base = {
+    model,
+    temperature: options.temperature ?? 0,
+    messages,
+    reasoning_effort: "low",
+    reasoning_format: "hidden",
+  };
   let res = await fetch(GROQ_URL, {
     method: "POST",
     headers,
     body: JSON.stringify({ ...base, max_completion_tokens: maxTokens }),
   });
   if (res.status === 400) {
+    // Retry without the reasoning params too, in case a model rejects them.
+    const { reasoning_effort: _re, reasoning_format: _rf, ...plain } = base;
     res = await fetch(GROQ_URL, {
       method: "POST",
       headers,
-      body: JSON.stringify({ ...base, max_tokens: maxTokens }),
+      body: JSON.stringify({ ...plain, max_tokens: maxTokens }),
     });
   }
   return res;
@@ -134,7 +147,11 @@ export async function groqChat(
 
     if (!res.ok) {
       lastError = `Groq ${res.status}: ${(await res.text()).slice(0, 180)}`;
-      if (res.status === 404 || res.status === 400) continue;
+      // 429 = rate limited. Groq's free-tier limits are per-model, not
+      // account-wide ("Rate limit reached for model `...`") — so a 429 on
+      // one candidate doesn't mean the others are also exhausted. Try them
+      // before giving up.
+      if (res.status === 404 || res.status === 400 || res.status === 429) continue;
       throw new Error(lastError);
     }
 
@@ -179,14 +196,18 @@ Rules:
 - not interested / nahi chahiye → not_interested
 - already use something → already_use_competitor
 - email / whatsapp → send_email
-- price / kitna → how_much
+- price / kitna / refund / policy / services / products / plans / features → company_knowledge
+- how much for a specific plan or policy → company_knowledge
+- book a demo / schedule a meeting → booking_request
+- price objection without a company-fact question → how_much
 - are you AI / bot → is_this_ai
 - who gave number → who_gave_number
 - call later / baad mein → call_later
 - none of those times → decline_slots
 - I'm free Thursday → give_availability
-- off-topic / weather / cricket / random question / cannot map → unclear
-If none fit, unclear.`,
+- company services, pricing, refund, policy, hours, products, plans → company_knowledge
+- off-topic / weather / cricket / cannot map → company_knowledge
+If none fit, company_knowledge.`,
       },
       {
         role: "user",
@@ -194,13 +215,20 @@ If none fit, unclear.`,
 Agent last said: ${lastAgent || "(opening)"}
 Caller said: ${userText}`,
       },
-    ]);
+    ], {
+      // Reasoning models sometimes ignore reasoning_effort/reasoning_format
+      // and still spend the token budget thinking out loud before the
+      // label. 64 tokens cut that off mid-thought — nothing left to parse,
+      // so it silently fell back to keywords. Give it real headroom instead
+      // of hoping it skips reasoning.
+      maxTokens: 300,
+    });
     const intent = parseIntent(raw);
     if (!intent) {
       lastVia = "script";
       lastIntent = fallback;
       lastError = "Groq intent unclear, used keywords";
-      console.warn(lastError, raw.slice(0, 120));
+      console.warn(lastError, raw.slice(0, 160));
       return fallback;
     }
     lastVia = "groq";
@@ -279,5 +307,69 @@ One question only. Then stop.`,
     lastError = error instanceof Error ? error.message : "Groq steer failed";
     console.warn("Groq steer failed, using hold line:", lastError);
     return fallback;
+  }
+}
+
+/**
+ * On-script: the state machine already decided WHAT to say (the `canned` line
+ * carries every fact — slot times, price disclaimers, the CTA). This only
+ * asks Groq to rephrase it the way a real salesperson would say it out loud,
+ * reacting briefly to what the caller just said, so the call doesn't repeat
+ * the identical sentence every time it hits the same beat.
+ *
+ * Safety: if `mustInclude` facts (an offered slot, a booked slot) don't
+ * survive the rephrase, the canned line is used instead — free-flowing
+ * wording, never free-flowing facts.
+ */
+export async function naturalizeReply(
+  session: Session,
+  userText: string,
+  canned: string,
+  mustInclude: string[] = [],
+): Promise<string> {
+  if (!groqEnabled()) {
+    lastVia = "script";
+    return canned;
+  }
+
+  try {
+    const raw = await groqChat(
+      [
+        {
+          role: "system",
+          content: `${languageHint(session.lead.preferred_language)} Live outbound sales call. Rephrase the line below the way a real, warm salesperson would say it out loud, briefly reacting to what the caller just said.
+Rules:
+- Keep every fact, number, name, and time in the line exactly as given. Do not drop, add, or invent any.
+- Keep the same question / call-to-action at the end.
+- 1-2 short spoken sentences. No lists, no markdown, no labels.
+Output ONLY the rephrased spoken line.`,
+        },
+        {
+          role: "user",
+          content: `Caller just said: "${userText}"\nLine to say: "${canned}"`,
+        },
+      ],
+      { maxTokens: 220, temperature: 0.5 },
+    );
+    const spoken = tidySpoken(raw, "");
+    if (!spoken) {
+      lastVia = "script";
+      return canned;
+    }
+    const lower = spoken.toLowerCase();
+    const droppedFact = mustInclude.some((fact) => fact && !lower.includes(fact.toLowerCase()));
+    if (droppedFact) {
+      lastVia = "script";
+      return canned;
+    }
+    lastVia = "steer";
+    lastError = "";
+    console.log(`Groq natural (${resolvedModel}): ${spoken}`);
+    return spoken;
+  } catch (error) {
+    lastVia = "script";
+    lastError = error instanceof Error ? error.message : "Groq naturalize failed";
+    console.warn("Groq naturalize failed, using scripted line:", lastError);
+    return canned;
   }
 }
