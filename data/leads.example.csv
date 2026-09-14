@@ -1,4 +1,4 @@
 company_name,contact_name,contact_number,contact_role,company_domain,company_description,industry,need_for_bot,preferred_language,lead_source,priority_tier
-CityCare Hospital,Ananya Sharma,+919800000001,Front desk lead,citycare.example,patients call at night and nobody picks up,hospital,night calls go to voicemail,hi-IN-hinglish,demo,high
-FreshBasket,Rohan Mehta,+919800000002,Customer support,freshbasket.example,shoppers keep calling to ask where their order is,online grocery,too many where-is-my-order calls,en-IN,demo,normal
-BrightSmile Clinic,Emily Carter,+14155550100,Office manager,brightsmile.example,the appointment line is busy all afternoon,dental clinic,people hang up before they can book,en-US,demo,normal
+CityCare Hospital,Ananya Sharma,+919800000001,Front desk manager,citycare.example,24/7 hospital front desk; phones go unanswered after visiting hours,hospital,after-hours patient calls go unanswered,hi-IN-hinglish,demo,high
+FreshBasket,Rohan Mehta,+919800000002,Operations lead,freshbasket.example,online grocery delivery app; support line gets flooded with order-status calls,grocery delivery,customers keep calling just to ask where is my order,en-IN,demo,normal
+BrightSmile Clinic,Emily Carter,+14155550100,Practice manager,brightsmile.example,small dental clinic; appointment line is busy most of the day,dental clinic,missed appointment booking calls,en-US,demo,normal

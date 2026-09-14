@@ -1,5 +1,6 @@
+import { config } from "../config.js";
 import type { Intent, Lead, PreferredLanguage } from "../types.js";
-import { closeLine, slotPair } from "./lines.js";
+import { closeLine, slotPair, topicFor } from "./lines.js";
 
 export type ObjectionId =
   | "not_interested"
@@ -25,14 +26,6 @@ export const OBJECTION_MAP: Record<ObjectionId, { intent: Intent; label: string 
   call_later: { intent: "call_later", label: "call me later" },
 };
 
-function topic(lead: Lead): string {
-  const blob = `${lead.industry} ${lead.company_description}`.toLowerCase();
-  if (/hospital|patient/.test(blob)) return "hospital";
-  if (/grocery|order|shop/.test(blob)) return "order";
-  if (/dental|clinic|appointment/.test(blob)) return "appointment";
-  return lead.industry || "customer";
-}
-
 export function rebuttal(
   id: ObjectionId,
   lead: Lead,
@@ -42,36 +35,36 @@ export function rebuttal(
   const hi = language === "hi-IN-hinglish";
   const when = closeLine(language, slots);
   const pair = slotPair(language, slots);
-  const kind = topic(lead);
+  const t = topicFor(lead);
 
   const lines: Record<ObjectionId, { en: string; hi: string }> = {
     not_interested: {
-      en: `Sure, no problem. One thing — if a short demo isn't useful, we stop there. ${when}`,
-      hi: `Sure, no problem. Bas ek cheez pooch sakta hoon — agar demo dekhne ke baad useful na lage, toh obviously aage kuch nahi karna. ${when}`,
+      en: `Totally get it — a lot of people feel that way at first. But once they actually see it catch ${t.noun} live, most change their mind fast. If a short demo isn't useful, we stop right there, no pressure. ${when}`,
+      hi: `Bilkul samajh sakta hoon — zyada log pehle aisa hi sochte hain. Lekin jab woh demo mein live ${t.nounHi} handle hote dekhte hain, zyadatar apna mind badal lete hain. Agar useful na lage toh wahin ruk jaate hain, koi pressure nahi. ${when}`,
     },
     already_use_competitor: {
-      en: `That's fine. This isn't about replacing what you have. We can just compare whether AI helps your current setup. Want a short demo?`,
-      hi: `Achha, perfect. Phir replace karne ki baat nahi hai. Hum bas compare karke dekh sakte hain ki AI aapke current setup mein kuch improve kar sakta hai ya nahi. Short demo chalega?`,
+      en: `Good to know — this isn't about ripping that out. Think of it as a second opinion: we compare how it handles ${t.noun} against what you already have. Worth a short look?`,
+      hi: `Achha, good to know. Yeh replace karne ki baat nahi hai — bas ek second opinion samjho. Hum compare kar sakte hain ki ${t.nounHi} ko aapka current setup kitna achhe se handle karta hai. Short demo dekhna chahenge?`,
     },
     send_email: {
-      en: `Sure, I'll email you. One suggestion — a live call is clearer than an email. If it's useful, read the email after. ${when}`,
-      hi: `Bilkul, email kar deta hoon. Bas ek suggestion hai — email mein explain karne se better hai ki aap live call dekh lein. Agar useful laga toh baad mein email dekh lena. ${when}`,
+      en: `Happy to email it over. Just so you know, a 2-minute call usually explains it faster than reading — if it's not useful, feel free to ignore the email after. ${when}`,
+      hi: `Bilkul, email kar deta hoon. Bas itna — 2 minute ka call usually padhne se fast samajh aata hai. Agar useful na laga toh email ignore kar dena. ${when}`,
     },
     how_much: {
-      en: `Price depends on call volume and what you need, so I don't want to give a random number. The demo covers exact pricing too. ${when}`,
-      hi: `Price ${kind === "hospital" ? "hospital ke call volume" : "call volume"} aur requirements par depend karta hai. Isliye main aapko random number nahi dena chahta. Demo mein exact pricing bhi explain ho jayegi. ${when}`,
+      en: `It depends on your call volume, so I won't quote a random number. The demo walks through exact pricing once we've seen how many ${t.noun} you're actually getting. ${when}`,
+      hi: `Yeh aapke call volume par depend karta hai, isliye main random number nahi dunga. Demo mein exact pricing dikh jaayegi jab pata chalega ki kitne ${t.nounHi} aate hain. ${when}`,
     },
     is_this_ai: {
-      en: `Yes, I'm Lipi's AI assistant. You're talking to me right now. If you want, the demo can show how this handles ${kind} calls in practice.`,
-      hi: `Haan, main Lipi ka AI assistant hoon. Aap abhi mujhse hi baat kar rahe hain. Agar aap chahein toh demo mein dekh sakte hain ki ye ${kind} calls ko practically kaise handle karta hai.`,
+      en: `Yes, I'm ${config.companyName}'s AI assistant. You're talking to me right now. Ask me about our services or pricing, or I can book a demo.`,
+      hi: `Haan, main ${config.companyName} ka AI assistant hoon. Aap abhi mujhse hi baat kar rahe hain. Services ya pricing pooch sakte ho, ya main demo book kar doon.`,
     },
     no_time: {
       en: `Of course, no problem. I won't take your time now. Thank you.`,
       hi: `Bilkul, koi problem nahi. Abhi time nahi lunga. Thank you.`,
     },
     who_gave_number: {
-      en: `We call relevant contacts at ${lead.company_name} for business outreach. If you don't want me to contact you again, I'll stop right here.`,
-      hi: `Hum ${lead.company_name} ke relevant contacts ko business outreach ke liye call karte hain. Agar aap nahi chahte ki main dobara contact karun, toh main usse yahin stop kar deta hoon.`,
+      en: `This is ${config.companyName} calling about our voice assistant. If you don't want me to contact you again, I'll stop right here.`,
+      hi: `Yeh ${config.companyName} ka call hai hamare voice assistant ke baare mein. Agar aap nahi chahte ki main dobara contact karun, toh main yahin stop karta hoon.`,
     },
     call_later: {
       en: `Sure. I can call back later. Or if it's easier, lock one time now — ${pair}?`,

@@ -13,16 +13,68 @@ function founder(): string {
   return config.founderName || "Sachin";
 }
 
-function industryBlob(lead: Lead): string {
-  return `${lead.industry} ${lead.company_description} ${lead.need_for_bot}`.toLowerCase();
+function company(): string {
+  return config.companyName || "our company";
 }
 
-function topicWord(lead: Lead, language: PreferredLanguage): string {
-  const blob = industryBlob(lead);
-  if (/hospital|patient/.test(blob)) return hi(language) ? "hospital" : "hospital";
-  if (/grocery|order|shop/.test(blob)) return hi(language) ? "order" : "order";
-  if (/dental|clinic|appointment/.test(blob)) return hi(language) ? "appointment" : "appointment";
-  return lead.industry || "customer";
+export type Topic = {
+  key: "hospital" | "order" | "appointment" | "general";
+  /** Short noun phrase for splicing into a sentence, e.g. "patient calls". */
+  noun: string;
+  nounHi: string;
+  /** Fuller phrase for a standalone question/sentence. */
+  full: string;
+  fullHi: string;
+  /** What it costs them when the call goes unanswered — sells the outcome, not the feature. */
+  consequence: string;
+  consequenceHi: string;
+};
+
+/** Maps a lead's industry/description to the concrete problem this call is about. */
+export function topicFor(lead: Lead): Topic {
+  const blob = `${lead.industry} ${lead.company_description} ${lead.need_for_bot}`.toLowerCase();
+  if (/hospital|patient/.test(blob)) {
+    return {
+      key: "hospital",
+      noun: "patient calls",
+      nounHi: "patient calls",
+      full: "after-hours patient calls that go unanswered",
+      fullHi: "raat ke patient calls jo miss ho jaate hain",
+      consequence: "a patient who needed help and got a dead line",
+      consequenceHi: "ek patient ko urgent madad chahiye thi aur line hi nahi lagi",
+    };
+  }
+  if (/grocery|order|delivery/.test(blob)) {
+    return {
+      key: "order",
+      noun: "order-status calls",
+      nounHi: "order-status calls",
+      full: "\"where is my order\" calls flooding your line",
+      fullHi: "\"order kahan hai\" wale calls jo line block karte hain",
+      consequence: "a frustrated customer who doesn't order again",
+      consequenceHi: "customer frustrate hoke dobara order hi nahi karta",
+    };
+  }
+  if (/dental|clinic|appointment/.test(blob)) {
+    return {
+      key: "appointment",
+      noun: "appointment calls",
+      nounHi: "appointment calls",
+      full: "appointment calls that never get through",
+      fullHi: "appointment ke calls jo connect hi nahi hote",
+      consequence: "a patient who just books the clinic down the street",
+      consequenceHi: "patient bagal wali clinic mein book kar leta hai",
+    };
+  }
+  return {
+    key: "general",
+    noun: "missed calls",
+    nounHi: "missed calls",
+    full: "calls you're probably missing right now",
+    fullHi: "calls jo abhi miss ho rahe honge",
+    consequence: "a customer who just calls your competitor next",
+    consequenceHi: "customer seedha competitor ko call kar leta hai",
+  };
 }
 
 export function defaultMeetingSlots(language: PreferredLanguage = "en-IN"): string[] {
@@ -45,60 +97,39 @@ export function defaultMeetingSlots(language: PreferredLanguage = "en-IN"): stri
   return out;
 }
 
+/** Outbound cold-open: say who's calling and why, then ask for a minute. Nothing else. */
 export function openingLine(lead: Lead, language: PreferredLanguage): string {
   const name = firstName(lead);
   if (hi(language)) {
-    return `Namaste ${name}, main Lipi se AI assistant bol raha hoon. Abhi ek minute hai?`;
+    return `Namaste ${name}, main ${company()} ka AI assistant hoon, ${founder()} ki taraf se call kar raha hoon. Bilkul chhota sa call hai — ek minute milega?`;
   }
-  return `Hi ${name}, this is Lipi's AI assistant. Have you got a minute?`;
+  return `Hi ${name}, this is ${company()}'s AI assistant, calling on behalf of ${founder()}. It'll only take a minute — is now an okay time?`;
 }
 
+/** The discovery question this call is actually built around. Lead-specific, not a menu. */
 export function problemQuestion(lead: Lead, language: PreferredLanguage): string {
-  const blob = industryBlob(lead);
-  const company = lead.company_name;
+  const t = topicFor(lead);
   if (hi(language)) {
-    if (/hospital|patient/.test(blob)) {
-      return `Agar raat mein koi patient ${company} ke number par call kare aur staff available na ho, toh call miss ho sakti hai, right?`;
-    }
-    if (/grocery|order|shop/.test(blob)) {
-      return `Customers baar baar call karke poochte hain unka order kahan hai, right?`;
-    }
-    if (/dental|clinic|appointment/.test(blob)) {
-      return `Appointment line busy rehti hai aur log book kiye bina hang up kar dete hain, right?`;
-    }
-    return `${lead.company_description} — yeh aapke yahan ho raha hai, right?`;
+    return `${lead.company_name} mein abhi ${t.fullHi} — yeh kaise handle karte hain?`;
   }
-  if (/hospital|patient/.test(blob)) {
-    return `If a patient calls ${company} at night and nobody is at the desk, that call gets missed, right?`;
-  }
-  if (/grocery|order|shop/.test(blob)) {
-    return `Shoppers keep calling to ask where their order is, right?`;
-  }
-  if (/dental|clinic|appointment/.test(blob)) {
-    return `The appointment line stays busy and people hang up before they can book, right?`;
-  }
-  return `${lead.company_description} — that happens on your side, right?`;
+  return `How is ${lead.company_name} handling ${t.full} today?`;
 }
 
-/** One personalized beat. Then wait. */
+/** Company intro beat: thank them for the minute, ask the one discovery question. */
 export function contextBridge(lead: Lead, language: PreferredLanguage): string {
-  const question = problemQuestion(lead, language);
   if (hi(language)) {
-    return `Thank you. Main actually ${lead.company_name} ko lekar call kar raha hoon. ${question}`;
+    return `Shukriya. Ek quick sawal — ${problemQuestion(lead, language)}`;
   }
-  return `Thank you. I'm calling about ${lead.company_name}. ${question}`;
+  return `Thanks. Quick question — ${problemQuestion(lead, language)}`;
 }
 
-/** Short capability + one demo ask. Then wait. */
+/** Acknowledge, sell the outcome (not just the feature), ask for a demo. Then wait. */
 export function pitchLine(lead: Lead, language: PreferredLanguage): string {
-  const topic = topicWord(lead, language);
+  const t = topicFor(lead);
   if (hi(language)) {
-    if (topic === "hospital") {
-      return `Humara AI us time phone attend kar sakta hai, patient ki basic query samajh sakta hai, aur zarurat ho toh call ya message team tak forward kar sakta hai. Main aapko ek short demo dikha doon?`;
-    }
-    return `Humara AI us time phone attend kar sakta hai, ${topic} ki basic query samajh sakta hai, aur zarurat ho toh team tak forward kar sakta hai. Main aapko ek short demo dikha doon?`;
+    return `Samajh gaya. Har baar jo call miss hoti hai, uska matlab ${t.consequenceHi}. ${company()} ek AI voice agent deta hai jo ${t.nounHi} turant pick karta hai, chaahe koi available ho ya na ho. Ek chhota demo dikhaun?`;
   }
-  return `Our AI can pick up then, understand a basic ${topic} query, and pass it to your team if needed. Can I show you a short demo?`;
+  return `Got it. Every one of those calls that goes unanswered means ${t.consequence}. ${company()} gives you an AI voice agent that picks up ${t.noun} the moment they come in — want a quick demo?`;
 }
 
 export function slotPair(language: PreferredLanguage, slots: string[]): string {
@@ -110,9 +141,9 @@ export function slotPair(language: PreferredLanguage, slots: string[]): string {
 export function closeLine(language: PreferredLanguage, slots: string[]): string {
   const pair = slotPair(language, slots);
   if (hi(language)) {
-    return `${pair} — aapke liye kya convenient rahega?`;
+    return `Bilkul. Mere paas ${pair} available hai — aapke liye kya better rahega?`;
   }
-  return `${pair} — what works better for you?`;
+  return `Sure thing — I've got ${pair} open. Which works better for you?`;
 }
 
 export function confirmSlotLine(language: PreferredLanguage, slot: string): string {
@@ -182,11 +213,11 @@ export function silenceHangupLine(language: PreferredLanguage): string {
 
 export function currentScriptQuestion(lead: Lead, language: PreferredLanguage, state: string): string {
   if (state === "OPENING") {
-    return hi(language) ? "Abhi ek minute hai?" : "Have you got a minute?";
+    return hi(language) ? "Ek minute milega?" : "Is now an okay time?";
   }
   if (state === "CONTEXT_BRIDGE") return problemQuestion(lead, language);
   if (state === "PITCH" || state === "OBJECTION_HANDLING") {
-    return hi(language) ? "Main aapko ek short demo dikha doon?" : "Can I show you a short demo?";
+    return hi(language) ? "Ek chhota demo dikhaun?" : "Want a quick demo?";
   }
   if (state === "CLOSE") return closeLine(language, defaultMeetingSlots(language));
   return hi(language) ? "Haan, boliye." : "Yeah, go ahead.";
@@ -195,11 +226,4 @@ export function currentScriptQuestion(lead: Lead, language: PreferredLanguage, s
 export function holdOnScriptLine(lead: Lead, language: PreferredLanguage, state: string): string {
   const question = currentScriptQuestion(lead, language, state);
   return hi(language) ? `Samajh gaya. ${question}` : `Got it. ${question}`;
-}
-
-export function continuePrompt(language: PreferredLanguage): string {
-  if (hi(language)) {
-    return `Haan, boliye.`;
-  }
-  return `Yeah, go ahead.`;
 }
