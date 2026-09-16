@@ -16,7 +16,7 @@ import { knowledgeRouter } from "./routes/knowledge.js";
 import { thinkingFillers } from "./script/lines.js";
 import { createSession, endCallManually, nudge, startCall } from "./script/stateMachine.js";
 import { LeadSchema, PreferredLanguageSchema, type Session } from "./types.js";
-import { prewarmSpeech, synthesizeSpeech } from "./tts.js";
+import { prewarmSpeech, synthesizeSpeech, ttsProviderFor } from "./tts.js";
 import { describeRouting, routeVoice } from "./voice/routing.js";
 
 const sessions = new Map<string, Session>();
@@ -39,6 +39,11 @@ app.get("/api/health", async (_req, res) => {
     groq: groqStatus(),
     mongo: mongoStatus(),
     embeddings: embeddingStatus(),
+    tts: {
+      "en-US": ttsProviderFor("en-US"),
+      "en-IN": ttsProviderFor("en-IN"),
+      "hi-IN-hinglish": ttsProviderFor("hi-IN-hinglish"),
+    },
   });
 });
 

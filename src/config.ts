@@ -39,6 +39,17 @@ export const config = {
       voiceId: env("TTS_HINGLISH_VOICE_ID"),
     },
   },
+  sarvam: {
+    apiKey: env("SARVAM_API_KEY"),
+    model: env("SARVAM_TTS_MODEL", "bulbul:v3"),
+    // The Hinglish script is written in masculine Hindi ("kar raha hoon",
+    // "bhej deta hoon"), so default to a male voice or the grammar jars.
+    speakerHinglish: env("SARVAM_SPEAKER_HINGLISH", "shubh"),
+    speakerEnIn: env("SARVAM_SPEAKER_EN_IN", "shubh"),
+    // Bulbul takes romanized Hinglish under either code; hi-IN is what
+    // Sarvam's own code-mixed examples use. Override to en-IN to compare.
+    langHinglish: env("SARVAM_LANG_HINGLISH", "hi-IN"),
+  },
   anthropicApiKey: env("ANTHROPIC_API_KEY"),
   anthropicModel: env("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"),
   groqApiKey: env("GROQ_API_KEY"),

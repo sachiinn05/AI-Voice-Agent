@@ -5,6 +5,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { MsEdgeTTS, OUTPUT_FORMAT } from "msedge-tts";
+import { SarvamAIClient } from "sarvamai";
+import { config } from "./config.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -13,22 +15,55 @@ function env(name: string, fallback: string): string {
 }
 
 /**
- * Edge neural voices, free and keyless. Override per language in .env to A/B
- * a different one — `npm run voices` lists every voice Edge exposes.
+ * Edge neural voices, free and keyless — the fallback when no Sarvam key is
+ * set, and for en-US always. Override per language in .env to A/B a
+ * different one; `npm run voices` lists every voice Edge exposes.
  *
  * Defaults:
  * - en-US: Ava (multilingual) is Microsoft's newer conversational voice and
  *   sounds markedly less "read-aloud" than the older Jenny.
- * - en-IN / Hinglish: Neerja Expressive carries more conversational prosody
- *   than plain Neerja. Note Hinglish is deliberately spoken by an
- *   Indian-English voice, not a hi-IN one: the script is romanized Hindi
- *   ("main aapki help kar sakta hoon") and hi-IN voices expect Devanagari.
+ * - en-IN: Neerja Expressive carries more conversational prosody.
+ * - Hinglish: Prabhat — a MALE Indian-English voice, because the Hinglish
+ *   script is written in masculine Hindi ("kar raha hoon"). It's an en-IN
+ *   voice rather than hi-IN because the text is romanized, not Devanagari.
  */
 const VOICES: Record<string, string> = {
   "en-US": env("TTS_EDGE_VOICE_EN_US", "en-US-AvaMultilingualNeural"),
   "en-IN": env("TTS_EDGE_VOICE_EN_IN", "en-IN-NeerjaExpressiveNeural"),
-  "hi-IN-hinglish": env("TTS_EDGE_VOICE_HINGLISH", "en-IN-NeerjaExpressiveNeural"),
+  "hi-IN-hinglish": env("TTS_EDGE_VOICE_HINGLISH", "en-IN-PrabhatNeural"),
 };
+
+// ---------------------------------------------------------------------------
+// Sarvam Bulbul — native Indic / code-mixed voices. Used for Hinglish and
+// Indian English when SARVAM_API_KEY is set; Edge remains the fallback so a
+// clone with no key still talks. en-US stays on Edge: Bulbul is Indic-tuned
+// and would give Emily's US persona an Indian accent.
+// ---------------------------------------------------------------------------
+let sarvamClient: SarvamAIClient | null = null;
+
+function sarvamEnabledFor(language: string): boolean {
+  return Boolean(config.sarvam.apiKey) && (language === "hi-IN-hinglish" || language === "en-IN");
+}
+
+export function ttsProviderFor(language: string): "sarvam" | "edge" {
+  return sarvamEnabledFor(language) ? "sarvam" : "edge";
+}
+
+async function sarvamSpeak(text: string, language: string): Promise<Buffer> {
+  sarvamClient ??= new SarvamAIClient({ apiSubscriptionKey: config.sarvam.apiKey });
+  const hinglish = language === "hi-IN-hinglish";
+  const res = await sarvamClient.textToSpeech.convert({
+    text,
+    language_code: hinglish ? (config.sarvam.langHinglish as "hi-IN" | "en-IN") : "en-IN",
+    speaker: (hinglish ? config.sarvam.speakerHinglish : config.sarvam.speakerEnIn) as "shubh",
+    model: config.sarvam.model as "bulbul:v3",
+    output_audio_codec: "mp3",
+    pace: 0.95,
+  });
+  const audio = Buffer.from(res.audios?.[0] ?? "", "base64");
+  if (audio.length < 200) throw new Error("Sarvam returned empty audio");
+  return audio;
+}
 
 function escapeXml(text: string): string {
   return text
@@ -159,12 +194,23 @@ export async function synthesizeSpeech(
   const cached = audioCache.get(cacheKey);
   if (cached) return cached;
 
-  let result: { buffer: Buffer; type: string };
-  try {
-    result = { buffer: await edgeSpeak(line, language), type: "audio/mpeg" };
-  } catch (error) {
-    console.warn("Edge TTS failed, using Windows voice:", error);
-    result = await windowsSpeak(line, language);
+  let result: { buffer: Buffer; type: string } | null = null;
+
+  if (sarvamEnabledFor(language)) {
+    try {
+      result = { buffer: await sarvamSpeak(line, language), type: "audio/mpeg" };
+    } catch (error) {
+      console.warn("Sarvam TTS failed, falling back to Edge:", error instanceof Error ? error.message : error);
+    }
+  }
+
+  if (!result) {
+    try {
+      result = { buffer: await edgeSpeak(line, language), type: "audio/mpeg" };
+    } catch (error) {
+      console.warn("Edge TTS failed, using Windows voice:", error);
+      result = await windowsSpeak(line, language);
+    }
   }
 
   if (audioCache.size >= AUDIO_CACHE_LIMIT) {
