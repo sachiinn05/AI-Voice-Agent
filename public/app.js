@@ -139,11 +139,16 @@ async function loadCalls() {
     : `<p class="hint">No calls yet.</p>`;
 }
 
+// How long to wait before "can you still hear me?". Was 5.5s — in real calls
+// that fired while the caller was mid-answer and still being recognized,
+// and ended two engaged calls as "Not Interested" purely on the timeout.
+const SILENCE_NUDGE_MS = 9000;
+
 function armSilenceNudge() {
   window.clearTimeout(silenceTimer);
   silenceTimer = window.setTimeout(() => {
     if (inCall && !busy && !voice.speaking && nudges < 2) void sendNudge();
-  }, 5500);
+  }, SILENCE_NUDGE_MS);
 }
 
 function listenAgain() {
@@ -160,7 +165,10 @@ function attachListener() {
     createListener({
       language,
       onPartial: (text) => {
-        if (!voice.speaking) caption("You", text);
+        if (voice.speaking) return;
+        caption("You", text);
+        // They're talking — that's not silence. Push the nudge back.
+        armSilenceNudge();
       },
       onFinal: (text) => {
         void sendUtterance(text);

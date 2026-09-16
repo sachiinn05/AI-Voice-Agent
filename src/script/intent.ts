@@ -47,9 +47,16 @@ const PATTERNS: Array<{ intent: Intent; re: RegExp }> = [
   { intent: "interested", re: /\b(interested|sounds good|sounds interesting|let'?s do|karte hain|chalo|why not)\b/i },
 ];
 
+// How browser STT actually transcribes a spoken "haan" / "haan haan" / "ji".
+// Only trusted when it's the ENTIRE utterance: "ham" alone is a misheard
+// "haan", but "ham unhen subah call karte hain" means "we call them…".
+const SHORT_YES_RE =
+  /^(haan|han|ham|hn|haa|hain|hanji|haanji|ji|ji haan|haan ji|hmm|hm|ok|okay|yes|yeah|yep|yup|sure|theek|thik|theek hai|thik hai|bilkul|achha|accha)(\s+(haan|han|ji|ok|okay|yes|hai|bilkul))?[.!]?$/i;
+
 export function detectIntent(text: string): Intent {
   const trimmed = text.trim();
   if (!trimmed) return "unclear";
+  if (SHORT_YES_RE.test(trimmed)) return "acknowledge";
   for (const { intent, re } of PATTERNS) {
     if (re.test(trimmed)) return intent;
   }

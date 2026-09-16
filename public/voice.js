@@ -204,6 +204,12 @@ export function stopSpeaking() {
   voice.speaking = false;
 }
 
+// A complete one-or-two-word acknowledgment. When the interim transcript is
+// exactly this, there's nothing more coming — send it now instead of waiting
+// out the pause timer. This is what made "haan" / "okay" feel slow.
+const SHORT_ACK_RE =
+  /^(haan|han|ham|hn|haa|hain|hanji|haanji|ji|hmm|ok|okay|yes|yeah|yep|yup|sure|theek|thik|theek hai|thik hai|bilkul|achha|accha)(\s+(haan|han|ji|ok|okay|yes|hai|bilkul))?$/i;
+
 export function createListener({ language, onPartial, onFinal, onBargeIn, onIdle }) {
   if (!SpeechRecognition) {
     throw new Error("This browser cannot listen. Use Chrome or Edge.");
@@ -238,7 +244,12 @@ export function createListener({ language, onPartial, onFinal, onBargeIn, onIdle
       onFinal?.(text);
       return;
     }
-    pauseTimer = window.setTimeout(() => onFinal?.(text), 700);
+    // Fast path: a bare "haan" / "okay" is complete the moment we hear it.
+    // Everything else waits a beat so we don't cut a sentence off after its
+    // first word (a real call logged "call" … "call" from "we call them
+    // back" being ended too early).
+    const wait = SHORT_ACK_RE.test(text.replace(/[.,!?]+$/, "")) ? 150 : 850;
+    pauseTimer = window.setTimeout(() => onFinal?.(text), wait);
   };
 
   recognition.onend = () => {

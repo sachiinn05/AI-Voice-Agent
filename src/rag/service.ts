@@ -36,12 +36,23 @@ function minScore(): number {
   return embeddingProvider() === "local" ? 0.12 : 0.5;
 }
 
+/**
+ * Don't-know reply. Still refuses to guess (never invent facts) — but this is
+ * a sales call, so pivot to the demo instead of "let me connect you to a
+ * human", which in real transcripts read as the agent giving up mid-call.
+ */
 function notEnough(language: PreferredLanguage): string {
+  const who = config.founderName || "our team";
   if (language === "hi-IN-hinglish") {
-    return "Is point ki exact detail mere company documents mein nahi hai, isliye main guess nahi karunga. Main aapko team se connect kar sakta hoon.";
+    return `Achha sawal hai — iska exact answer mere paas abhi nahi hai, aur main guess nahi karunga. Yeh exactly wahi cheez hai jo ${who} demo mein detail se batayenge.`;
   }
-  return "I don't have enough information on that in our company documents, so I won't guess. I can connect you with a teammate who can help.";
+  return `Good question — I don't have the exact answer on that, and I won't guess. It's exactly the kind of thing ${who} walks through in the demo.`;
 }
+
+// Ways the model phrases "I don't know" that should be treated as a refusal,
+// not spoken as-is. English + Hinglish, from real call transcripts.
+const REFUSAL_RE =
+  /do not have enough information|don'?t have (enough|the) (information|details)|not sure what you'?re referring|documents mein nahi|guess nahi karunga|jankari nahi|jaankari nahi|pata nahi|human representative|connect (you|aapko)|representative se|team se (jod|connect)/i;
 
 function languageHint(language: PreferredLanguage): string {
   if (language === "hi-IN-hinglish") return "Speak simple spoken Hinglish only.";
@@ -147,21 +158,12 @@ export async function answerCompanyQuestion(input: {
     );
 
     const spoken = firstSentences(stripReasoning(raw).replace(/^["']|["']$/g, ""));
-    if (spoken.length < 12) {
-      return {
-        answer: firstSentences(strong[0]?.chunkText ?? empty.answer),
-        sources: toSources(strong),
-        grounded: true,
-      };
-    }
 
-    const refused = /do not have enough information|documents mein nahi|guess nahi karunga/i.test(spoken);
-    if (refused) {
-      return {
-        answer: firstSentences(strong[0]?.chunkText ?? empty.answer),
-        sources: toSources(strong),
-        grounded: true,
-      };
+    // If the model couldn't answer from the context, say so and pivot —
+    // do NOT read the top PDF chunk aloud instead. In real calls that
+    // produced a DNC-policy paragraph in reply to "the calls we miss…".
+    if (spoken.length < 12 || REFUSAL_RE.test(spoken)) {
+      return { answer: notEnough(input.language), sources: toSources(strong), grounded: false };
     }
     return {
       answer: spoken,
@@ -170,10 +172,6 @@ export async function answerCompanyQuestion(input: {
     };
   } catch (error) {
     console.warn("RAG LLM failed:", error instanceof Error ? error.message : error);
-    return {
-      answer: firstSentences(strong[0]?.chunkText ?? empty.answer),
-      sources: toSources(strong),
-      grounded: true,
-    };
+    return { answer: notEnough(input.language), sources: toSources(strong), grounded: false };
   }
 }

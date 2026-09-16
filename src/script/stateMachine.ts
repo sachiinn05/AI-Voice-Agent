@@ -89,6 +89,25 @@ function hoursIn(text: string): Set<string> {
  * second=Tuesday mapping — that assumption silently booked the wrong day
  * whenever the real slots landed on any other weekday pair.
  */
+/**
+ * Does the caller's reply name one of the slots we just offered (a weekday,
+ * an hour, or "first/second")? Used to override the LLM's intent label in
+ * CLOSE: in real calls "Wednesday" — the literal second option — was labelled
+ * give_availability, so the bot said "I'll send a calendar link" and lost the
+ * booking instead of confirming Wednesday.
+ */
+export function mentionsOfferedSlot(text: string, options: string[]): boolean {
+  const lower = text.toLowerCase();
+  if (/\b(first|second|pehla|doosra|dusra|pehli|doosri)\b/.test(lower)) return true;
+  const saidHours = hoursIn(lower);
+  for (const option of options) {
+    const day = option.match(WEEKDAY_RE)?.[0]?.toLowerCase();
+    if (day && lower.includes(day)) return true;
+    if ([...hoursIn(option.toLowerCase())].some((h) => saidHours.has(h))) return true;
+  }
+  return false;
+}
+
 export function pickSlot(text: string, options: string[]): string {
   const lower = text.toLowerCase();
   const saidHours = hoursIn(lower);

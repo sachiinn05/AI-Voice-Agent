@@ -5,8 +5,20 @@ import { classifyIntent, naturalizeReply, steerBackToScript } from "../llm/groq.
 import { answerCompanyQuestion } from "../rag/service.js";
 import { isOffScript } from "../script/intent.js";
 import { defaultMeetingSlots } from "../script/lines.js";
-import { offerBooking, recordSideReply, replaceLastAgentLine, replyTo } from "../script/stateMachine.js";
+import {
+  mentionsOfferedSlot,
+  offerBooking,
+  recordSideReply,
+  replaceLastAgentLine,
+  replyTo,
+} from "../script/stateMachine.js";
 import type { ConversationRoute, Intent, KnowledgeSource, Session } from "../types.js";
+
+// "Sorry, what?" / "dobara bolo" / "what did you just say" — re-say the last
+// line instead of classifying it as a new intent. A real call had the caller
+// ask exactly this and get a not-interested rebuttal back.
+const REPEAT_RE =
+  /\b(repeat|say (that|it) again|come again|pardon|didn'?t (catch|hear|get) (that|it)|what did you (just )?say|dobara (bolo|boliye|bolna)|phir se (bolo|boliye|bolna)|(pichhla|pichla|last) (sentence|line|baat)|samajh nahi aaya|sunai nahi diya|kya bola|kya kaha)\b/i;
 
 export type TurnResult = {
   agent: string;
@@ -66,7 +78,22 @@ function factsToPreserve(session: Session): string[] {
 }
 
 export async function handleTurn(session: Session, text: string): Promise<TurnResult> {
-  const intent = await classifyIntent(session, text);
+  // Caller asked us to repeat ourselves: replay the last line, don't advance.
+  const lastAgent = [...session.turns].reverse().find((t) => t.role === "agent");
+  if (!session.ended && lastAgent && REPEAT_RE.test(text) && text.trim().split(/\s+/).length <= 10) {
+    const again = recordSideReply(session, text, lastAgent.text, { via: "script" });
+    return { agent: again, via: "script", intent: "unclear", route: "conversation", sources: [], ended: false };
+  }
+
+  let intent = await classifyIntent(session, text);
+
+  // In CLOSE, naming one of the slots we just offered IS accepting it —
+  // regardless of what label the LLM picked. Overrides give_availability /
+  // acknowledge / unclear for "Wednesday", "11", "the second one", etc.
+  if (session.state === "CLOSE" && mentionsOfferedSlot(text, defaultMeetingSlots(session.lead.preferred_language))) {
+    intent = "accept_slot";
+  }
+
   const route = classifyRoute(intent, text, session.state);
 
   if (route === "knowledge" && !session.ended) {

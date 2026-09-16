@@ -193,6 +193,9 @@ Rules:
 - angry / scam / shut up → hostile
 - monday / tuesday / pehla / first / second → accept_slot
 - yes / ok / haan / theek / right → acknowledge
+- a lone "han", "ham", "hn", "hain", "haa" is speech-to-text mishearing "haan" → acknowledge
+- in CONTEXT_BRIDGE, a DESCRIPTION of how they handle calls today ("we call them back in the morning", "koi nahi uthata", "sometimes we can't handle") is them ANSWERING our question, not asking one → acknowledge, NOT company_knowledge
+- company_knowledge is only for an actual QUESTION about our company/product
 - not interested / nahi chahiye → not_interested
 - already use something → already_use_competitor
 - email / whatsapp → send_email
@@ -251,15 +254,19 @@ function languageHint(language: string): string {
   return "Speak spoken US English only.";
 }
 
-function tidySpoken(raw: string, fallback: string): string {
+function countSentences(text: string): number {
+  return text.split(/(?<=[.!?।…])\s+/).filter((s) => s.trim().length >= 8).length;
+}
+
+function tidySpoken(raw: string, fallback: string, maxSentences = 2, maxChars = 280): string {
   const cleaned = stripReasoning(raw).replace(/^["']|["']$/g, "");
   const sentences = cleaned
     .split(/(?<=[.!?।…])\s+/)
     .map((s) => s.trim())
     .filter((s) => s.length >= 8)
-    .slice(0, 2);
+    .slice(0, maxSentences);
   const spoken = sentences.join(" ").replace(/\?\./g, "?").trim();
-  if (spoken.length < 12 || spoken.length > 280) return fallback;
+  if (spoken.length < 12 || spoken.length > maxChars) return fallback;
   if (/prospect:|thinking|script question|analyze/i.test(spoken)) return fallback;
   return spoken;
 }
@@ -351,14 +358,20 @@ Output ONLY the rephrased spoken line.`,
       ],
       { maxTokens: 220, temperature: 0.5 },
     );
-    const spoken = tidySpoken(raw, "");
+    // Let the rephrase be as long as the scripted line (the pitch is three
+    // sentences) — a hard 2-sentence cap was silently cutting off the
+    // closing "…want a quick demo?" in real calls.
+    const budget = Math.max(2, countSentences(canned) + 1);
+    const spoken = tidySpoken(raw, "", budget, Math.max(280, canned.length + 120));
     if (!spoken) {
       lastVia = "script";
       return canned;
     }
     const lower = spoken.toLowerCase();
     const droppedFact = mustInclude.some((fact) => fact && !lower.includes(fact.toLowerCase()));
-    if (droppedFact) {
+    // If the script ends on a question (the CTA), the rephrase must too.
+    const droppedCta = /\?\s*$/.test(canned.trim()) && !/\?\s*$/.test(spoken);
+    if (droppedFact || droppedCta) {
       lastVia = "script";
       return canned;
     }

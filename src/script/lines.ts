@@ -157,19 +157,24 @@ export function slotPair(language: PreferredLanguage, slots: string[]): string {
   return hi(language) ? `${a} ya ${b}` : `${a} or ${b}`;
 }
 
+/**
+ * Say what the slots are FOR. A real caller answered "ek kis cheez ki timing
+ * hai?" (timing for what?) — the bare "Tuesday 11 ya Wednesday 3" landed with
+ * no context, mid-call.
+ */
 export function closeLine(language: PreferredLanguage, slots: string[]): string {
   const pair = slotPair(language, slots);
   if (hi(language)) {
-    return `Bilkul. Mere paas ${pair} available hai — aapke liye kya better rahega?`;
+    return `Bilkul. ${founder()} ke saath 15 minute ka demo rakh lete hain — ${pair}, aapke liye kya better rahega?`;
   }
-  return `Sure thing — I've got ${pair} open. Which works better for you?`;
+  return `Sure thing — let's set up a 15-minute demo with ${founder()}. I've got ${pair}. Which works better for you?`;
 }
 
 export function confirmSlotLine(language: PreferredLanguage, slot: string): string {
   if (hi(language)) {
-    return `${slot} lock karun?`;
+    return `Toh demo ${slot} lock kar doon?`;
   }
-  return `Shall I lock ${slot}?`;
+  return `So shall I lock the demo for ${slot}?`;
 }
 
 export function wrapUpLine(
