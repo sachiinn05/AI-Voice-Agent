@@ -91,6 +91,7 @@ export const PLACEHOLDERS = [
   "slot",
   "close",
   "question",
+  "rahe",
 ] as const;
 export type Placeholder = (typeof PLACEHOLDERS)[number];
 export type Vars = Partial<Record<Placeholder, string>>;

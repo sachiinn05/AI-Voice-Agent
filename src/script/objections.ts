@@ -2,9 +2,8 @@
  * Objection rebuttals, read from the `objections:` section of
  * scripts/call-script.yaml. The technique notes live there next to the lines.
  */
-import { config } from "../config.js";
 import type { Intent, Lead, PreferredLanguage } from "../types.js";
-import { closeLine, firstName, slotPair, topicFor } from "./lines.js";
+import { baseVars, closeLine, slotPair } from "./lines.js";
 import { getScript, render, scriptLang } from "./scriptFile.js";
 
 export type ObjectionId =
@@ -38,15 +37,8 @@ export function rebuttal(
   slots: string[],
 ): string {
   const l = scriptLang(language);
-  const t = topicFor(lead);
   return render(getScript().objections[id][l], {
-    name: firstName(lead),
-    company: lead.company_name,
-    ourCompany: config.companyName || "our company",
-    founder: config.founderName || "Sachin",
-    calls: l === "hi" ? t.nounHi : t.noun,
-    problem: l === "hi" ? t.fullHi : t.full,
-    consequence: l === "hi" ? t.consequenceHi : t.consequence,
+    ...baseVars(lead, language),
     slots: slotPair(language, slots),
     close: closeLine(language, slots),
   });

@@ -8,10 +8,9 @@
  * shortlist. It is never asked to write an answer. The spoken text is always
  * the script's own line, verbatim.
  */
-import { config } from "../config.js";
 import { groqChat, groqEnabled, stripReasoning } from "../llm/groq.js";
 import type { Lead, PreferredLanguage } from "../types.js";
-import { firstName, topicFor } from "./lines.js";
+import { baseVars } from "./lines.js";
 import { getScript, render, scriptLang, type CallScript } from "./scriptFile.js";
 import { cosine, embed, tokens, wordOverlap } from "./similarity.js";
 
@@ -96,16 +95,7 @@ async function groqPick(question: string, candidates: Array<{ item: Indexed; sco
 
 function renderAnswer(entry: FaqEntry, lead: Lead, language: PreferredLanguage): string {
   const l = scriptLang(language);
-  const t = topicFor(lead);
-  return render(entry[l], {
-    name: firstName(lead),
-    company: lead.company_name,
-    ourCompany: config.companyName || "our company",
-    founder: config.founderName || "Sachin",
-    calls: l === "hi" ? t.nounHi : t.noun,
-    problem: l === "hi" ? t.fullHi : t.full,
-    consequence: l === "hi" ? t.consequenceHi : t.consequence,
-  });
+  return render(entry[l], baseVars(lead, language));
 }
 
 /** Find the FAQ entry that answers `question`, or null if the script doesn't cover it. */

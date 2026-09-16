@@ -64,7 +64,8 @@ export function topicFor(lead: Lead): Topic {
 // Placeholder values for a given call
 // ---------------------------------------------------------------------------
 
-function baseVars(lead: Lead, language: PreferredLanguage): Vars {
+/** Shared by lines.ts, objections.ts, and faq.ts so every spoken line — not just this file's — sees the same fields. */
+export function baseVars(lead: Lead, language: PreferredLanguage): Vars {
   const t = topicFor(lead);
   const l = scriptLang(language);
   return {
@@ -75,6 +76,9 @@ function baseVars(lead: Lead, language: PreferredLanguage): Vars {
     calls: l === "hi" ? t.nounHi : t.noun,
     problem: l === "hi" ? t.fullHi : t.full,
     consequence: l === "hi" ? t.consequenceHi : t.consequence,
+    // Hindi grammatical agreement when a line addresses the caller directly
+    // ("aap ... rahe/rahi hain") — the rest of the sentence doesn't change.
+    rahe: lead.gender === "female" ? "rahi" : "rahe",
   };
 }
 

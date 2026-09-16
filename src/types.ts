@@ -23,6 +23,10 @@ export const LeadSchema = z.object({
   preferred_language: PreferredLanguageSchema.default("en-IN"),
   lead_source: z.string().default(""),
   priority_tier: z.enum(["human", "high", "normal"]).default("normal"),
+  // Only affects Hindi grammatical agreement when the script addresses the
+  // caller directly ("rahe" vs "rahi"). Defaults to the script's existing
+  // wording so a lead row without this column behaves exactly as before.
+  gender: z.enum(["male", "female"]).default("male"),
 });
 export type Lead = z.infer<typeof LeadSchema>;
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { loadScript, render, ScriptSchema, scriptPath } from "../src/script/scriptFile.js";
 import { PreferredLanguageSchema } from "../src/types.js";
-import { openingLine, pitchLine, closeLine, thinkingFillers, topicFor } from "../src/script/lines.js";
+import { openingLine, pitchLine, closeLine, nudgeLine, thinkingFillers, topicFor } from "../src/script/lines.js";
 import { rebuttal } from "../src/script/objections.js";
 import type { Lead } from "../src/types.js";
 
@@ -21,6 +21,7 @@ const ananya: Lead = {
   preferred_language: "hi-IN-hinglish",
   lead_source: "demo",
   priority_tier: "high",
+  gender: "female",
 };
 
 describe("scripts/call-script.yaml", () => {
@@ -71,5 +72,13 @@ describe("scripts/call-script.yaml", () => {
     const line = openingLine(ananya, "en-IN");
     expect(line).toContain("Ananya");
     expect(line).not.toContain("CityCare");
+  });
+
+  it("agrees Hindi grammar with the caller's gender when addressing them directly", () => {
+    const her = nudgeLine(ananya, "hi-IN-hinglish");
+    const him = nudgeLine({ ...ananya, gender: "male" }, "hi-IN-hinglish");
+    expect(her).toContain("rahi hain");
+    expect(him).toContain("rahe hain");
+    expect(her).not.toContain("rahe hain");
   });
 });

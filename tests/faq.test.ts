@@ -28,6 +28,7 @@ const rohan: Lead = {
   preferred_language: "en-IN",
   lead_source: "demo",
   priority_tier: "normal",
+  gender: "male",
 };
 
 beforeEach(() => {

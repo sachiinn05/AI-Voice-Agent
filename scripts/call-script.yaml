@@ -195,7 +195,7 @@ steering:
   # Silence: ask once, gently. Twice → the "silence" exit above.
   nudge:
     en: "{name}, can you still hear me?"
-    hi: "{name}, kya aap mujhe sun pa rahe hain?"
+    hi: "{name}, kya aap mujhe sun pa {rahe} hain?"
 
   # They wandered off-script: acknowledge in a breath, re-ask the question.
   hold_on_script:
@@ -257,7 +257,7 @@ objections:
   # Always honest. Then straight back to being useful.
   is_this_ai:
     en: "Yes, I'm {ourCompany}'s AI assistant — you're talking to me right now. Ask me anything about how it works, or I can set up the demo."
-    hi: "Haan, main {ourCompany} ka AI assistant hoon — aap abhi mujhse hi baat kar rahe hain. Kaise kaam karta hai pooch sakte ho, ya main demo set kar doon."
+    hi: "Haan, main {ourCompany} ka AI assistant hoon — aap abhi mujhse hi baat kar {rahe} hain. Kaise kaam karta hai pooch sakte ho, ya main demo set kar doon."
 
   # Busy means busy. Exit, don't negotiate.
   no_time:
@@ -414,7 +414,7 @@ faq:
       - robot jaisa lagega
       - log pakad lenge
     en: "You're hearing it right now — you can judge. It also tells callers up front that it's an AI assistant, and most people are just relieved someone picked up."
-    hi: "Abhi aap sun hi rahe ho — khud judge kar lijiye. Yeh callers ko pehle hi bata deta hai ki AI assistant hai, aur zyadatar log bas khush hote hain ki kisi ne phone uthaya."
+    hi: "Abhi aap sun hi {rahe} ho — khud judge kar lijiye. Yeh callers ko pehle hi bata deta hai ki AI assistant hai, aur zyadatar log bas khush hote hain ki kisi ne phone uthaya."
 
   - id: trial
     ask:
