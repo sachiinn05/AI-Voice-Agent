@@ -53,10 +53,21 @@ const PATTERNS: Array<{ intent: Intent; re: RegExp }> = [
 const SHORT_YES_RE =
   /^(haan|han|ham|hn|haa|hain|hanji|haanji|ji|ji haan|haan ji|hmm|hm|ok|okay|yes|yeah|yep|yup|sure|theek|thik|theek hai|thik hai|bilkul|achha|accha)(\s+(haan|han|ji|ok|okay|yes|hai|bilkul))?[.!]?$/i;
 
+// A flat "no" / "nahi" / "nhi" with nothing else attached — a hard, final
+// decline, not the start of a longer objection ("not interested, we already
+// use X") that still earns one soft rebuttal. Same "entire utterance only"
+// rule as SHORT_YES_RE above.
+const SHORT_NO_RE = /^(no|nope|nah|na|nahi|nahin|nhi)(\s+(thanks|thank you))?[.!]?$/i;
+
+export function isBareDecline(text: string): boolean {
+  return SHORT_NO_RE.test(text.trim());
+}
+
 export function detectIntent(text: string): Intent {
   const trimmed = text.trim();
   if (!trimmed) return "unclear";
   if (SHORT_YES_RE.test(trimmed)) return "acknowledge";
+  if (SHORT_NO_RE.test(trimmed)) return "not_interested";
   for (const { intent, re } of PATTERNS) {
     if (re.test(trimmed)) return intent;
   }

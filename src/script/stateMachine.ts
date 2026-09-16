@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { CallState, Intent, Lead, Session, TranscriptTurn } from "../types.js";
-import { detectIntent, isContinue, isOffScript } from "./intent.js";
+import { detectIntent, isBareDecline, isContinue, isOffScript } from "./intent.js";
 import {
   availabilityCapturedLine,
   closeLine,
@@ -130,12 +130,18 @@ export function pickSlot(text: string, options: string[]): string {
   return options[0] ?? "the first slot";
 }
 
-function handleObjection(session: Session, intent: Intent): string {
+function handleObjection(session: Session, intent: Intent, text: string): string {
   const id = intentToObjection(intent);
   const lang = session.lead.preferred_language;
   const options = slots(session);
 
   if (id) {
+    // A flat "no" / "nahi" is a final decision, not an opening objection to
+    // work — end the call right away with a short, polite line. No rebuttal,
+    // no re-pitching the demo; that's what made a plain "no" feel pushy.
+    if (id === "not_interested" && isBareDecline(text)) {
+      return endWith(session, "WRAP_UP", wrapUpLine(session.lead, lang, null));
+    }
     const already = session.objectionsRaised.includes(id);
     if (!already) session.objectionsRaised.push(id);
     if (already && (id === "not_interested" || id === "who_gave_number")) {
@@ -172,8 +178,8 @@ function handleClose(session: Session, intent: Intent, text: string): string {
     return endWith(session, "WRAP_UP", availabilityCapturedLine(lang));
   }
 
-  if (intent === "call_later") return handleObjection(session, "call_later");
-  if (intentToObjection(intent)) return handleObjection(session, intent);
+  if (intent === "call_later") return handleObjection(session, "call_later", text);
+  if (intentToObjection(intent)) return handleObjection(session, intent, text);
 
   return speak(session, "CLOSE", closeLine(lang, options));
 }
@@ -212,23 +218,23 @@ export function replyTo(session: Session, prospectText: string, intent?: Intent)
 
   switch (session.state) {
     case "OPENING":
-      if (intentToObjection(resolved)) return handleObjection(session, resolved);
+      if (intentToObjection(resolved)) return handleObjection(session, resolved, prospectText);
       return speak(session, "CONTEXT_BRIDGE", contextBridge(session.lead, lang));
 
     case "CONTEXT_BRIDGE":
-      if (intentToObjection(resolved)) return handleObjection(session, resolved);
+      if (intentToObjection(resolved)) return handleObjection(session, resolved, prospectText);
       return speak(session, "PITCH", pitchLine(session.lead, lang));
 
     case "PITCH":
     case "OBJECTION_HANDLING":
       if (intentToObjection(resolved) && resolved !== "is_this_ai") {
-        return handleObjection(session, resolved);
+        return handleObjection(session, resolved, prospectText);
       }
-      if (resolved === "is_this_ai") return handleObjection(session, resolved);
+      if (resolved === "is_this_ai") return handleObjection(session, resolved, prospectText);
       if (isContinue(resolved) || resolved === "accept_slot") {
         return speak(session, "CLOSE", closeLine(lang, slots(session)));
       }
-      return handleObjection(session, resolved);
+      return handleObjection(session, resolved, prospectText);
 
     case "CLOSE":
       return handleClose(session, resolved, prospectText);
