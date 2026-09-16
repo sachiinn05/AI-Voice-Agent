@@ -342,6 +342,26 @@ export function createListener({ language, onPartial, onFinal, onBargeIn, onIdle
   recognition.maxAlternatives = 1;
 
   let pauseTimer = 0;
+  // Pieces Chrome has already marked isFinal for the utterance in progress,
+  // banked but not yet delivered. Chrome's endpointer finalizes on its own
+  // timing and is eager to do it on a brief mid-thought pause ("haan
+  // matlab... hume bhi yeh dikkat hoti hai" can arrive as two separate
+  // "final" results) — trusting isFinal immediately sent the first half as
+  // the whole answer and moved the agent on before the caller finished.
+  // Bank each final piece and only commit after the same silence window the
+  // interim path already uses; a further piece arriving in that window
+  // extends the utterance instead of racing ahead of it.
+  let segments = [];
+
+  function bankedUtterance(latestPiece) {
+    return [...segments, latestPiece].filter(Boolean).join(" ").trim();
+  }
+
+  function commit(latestPiece) {
+    const full = bankedUtterance(latestPiece);
+    segments = [];
+    if (full) onFinal?.(full);
+  }
 
   recognition.onresult = (event) => {
     const last = event.results[event.results.length - 1];
@@ -359,10 +379,12 @@ export function createListener({ language, onPartial, onFinal, onBargeIn, onIdle
       return;
     }
 
-    onPartial?.(text);
+    onPartial?.(bankedUtterance(text));
     window.clearTimeout(pauseTimer);
+
     if (last.isFinal) {
-      onFinal?.(text);
+      segments.push(text);
+      pauseTimer = window.setTimeout(() => commit(""), 850);
       return;
     }
     // Fast path: a bare "haan" / "okay" is complete the moment we hear it.
@@ -370,10 +392,12 @@ export function createListener({ language, onPartial, onFinal, onBargeIn, onIdle
     // first word (a real call logged "call" … "call" from "we call them
     // back" being ended too early).
     const wait = SHORT_ACK_RE.test(text.replace(/[.,!?]+$/, "")) ? 150 : 850;
-    pauseTimer = window.setTimeout(() => onFinal?.(text), wait);
+    pauseTimer = window.setTimeout(() => commit(text), wait);
   };
 
   recognition.onend = () => {
+    window.clearTimeout(pauseTimer);
+    segments = [];
     onIdle?.();
   };
 
