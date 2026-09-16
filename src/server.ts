@@ -13,7 +13,7 @@ import { embeddingStatus } from "./embeddings/service.js";
 import { groqEnabled, groqStatus } from "./llm/groq.js";
 import { dashboardRouter } from "./routes/dashboard.js";
 import { knowledgeRouter } from "./routes/knowledge.js";
-import { createSession, nudge, startCall } from "./script/stateMachine.js";
+import { createSession, endCallManually, nudge, startCall } from "./script/stateMachine.js";
 import { LeadSchema, type Session } from "./types.js";
 import { synthesizeSpeech } from "./tts.js";
 import { describeRouting, routeVoice } from "./voice/routing.js";
@@ -103,7 +103,12 @@ app.post("/api/simulate/reply", async (req, res) => {
   }
   const turn = await handleTurn(session, text);
   let result = null;
-  if (session.ended) {
+  // Map.delete() returns true only if the key was still present — the
+  // first of a racing reply/nudge/hangup request to reach here "claims"
+  // the session and is the only one that scores + saves it. Without this,
+  // a hangup that lands while a reply is still in flight (both observing
+  // the same now-ended session) could score and save the same call twice.
+  if (session.ended && sessions.delete(callId)) {
     result = await scoreCall(session);
     if (result.compliance_flags.includes("do_not_call_requested")) {
       await addToDnc(session.lead.contact_number, "requested");
@@ -112,7 +117,6 @@ app.post("/api/simulate/reply", async (req, res) => {
       await bookSlot(session.meetingSlot, session.lead.contact_name);
     }
     await saveCall(result);
-    sessions.delete(callId);
   }
   res.json({
     callId,
@@ -137,10 +141,9 @@ app.post("/api/simulate/nudge", async (req, res) => {
   }
   const agent = nudge(session);
   let result = null;
-  if (session.ended) {
+  if (session.ended && sessions.delete(callId)) {
     result = await scoreCall(session);
     await saveCall(result);
-    sessions.delete(callId);
   }
   res.json({
     callId,
@@ -155,19 +158,20 @@ app.post("/api/simulate/nudge", async (req, res) => {
 app.post("/api/simulate/hangup", async (req, res) => {
   const callId = String(req.body?.callId ?? "");
   const session = sessions.get(callId);
-  if (!session) {
+  // Claim the session synchronously before any await — see the matching
+  // comment in /api/simulate/reply. Guards a double-click, and a hangup
+  // racing an in-flight reply/nudge that already finished the call.
+  if (!session || !sessions.delete(callId)) {
     res.status(404).json({ error: "Unknown callId." });
     return;
   }
-  session.ended = true;
-  session.state = "ENDED";
+  const agent = endCallManually(session);
   const result = await scoreCall(session);
   if (result.compliance_flags.includes("do_not_call_requested")) {
     await addToDnc(session.lead.contact_number, "requested");
   }
   await saveCall(result);
-  sessions.delete(callId);
-  res.json({ callId, ended: true, result });
+  res.json({ callId, agent, ended: true, result });
 });
 
 app.post("/api/dial", async (req, res) => {

@@ -235,6 +235,12 @@ export function replyTo(session: Session, prospectText: string, intent?: Intent)
   }
 }
 
+/** Operator ended the call (Hang Up) before the script reached a natural close — say a proper goodbye instead of just going silent. */
+export function endCallManually(session: Session): string {
+  if (session.ended) return session.turns.at(-1)?.text ?? "";
+  return endWith(session, "WRAP_UP", wrapUpLine(session.lead, session.lead.preferred_language, session.meetingSlot));
+}
+
 export function nudge(session: Session): string {
   if (session.ended) return session.turns.at(-1)?.text ?? "";
   session.silenceNudges += 1;

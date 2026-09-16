@@ -293,12 +293,15 @@ async function hangup() {
     await finish(null);
     return;
   }
+  window.clearTimeout(silenceTimer);
+  stopListening();
   const res = await fetch("/api/simulate/hangup", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ callId }),
   });
   const data = await res.json();
+  if (data.agent) await playAgent(data.agent, "script");
   await finish(data.result);
 }
 
