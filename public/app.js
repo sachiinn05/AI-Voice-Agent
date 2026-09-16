@@ -211,6 +211,35 @@ function showVia(via, sources) {
   }
 }
 
+let fillers = [];
+let lastFiller = "";
+
+async function loadFillers(lang) {
+  try {
+    const res = await fetch(`/api/fillers?language=${encodeURIComponent(lang)}`);
+    fillers = (await res.json()).fillers || [];
+  } catch {
+    fillers = [];
+  }
+}
+
+/** Short "right, got it…" spoken while the real reply is still generating. */
+async function playFiller() {
+  if (!fillers.length || !inCall) return;
+  // Don't repeat the same one twice in a row — that's what sounds robotic.
+  const choices = fillers.length > 1 ? fillers.filter((f) => f !== lastFiller) : fillers;
+  const pick = choices[Math.floor(Math.random() * choices.length)];
+  if (!pick) return;
+  lastFiller = pick;
+  setPhase("speaking");
+  caption("Agent", pick);
+  try {
+    await speak(pick, language);
+  } catch {
+    /* filler is optional — never block the real reply on it */
+  }
+}
+
 async function playAgent(text, via, sources) {
   caption("Agent", text);
   setPhase("speaking");
@@ -231,11 +260,24 @@ async function sendUtterance(text) {
   window.clearTimeout(silenceTimer);
   stopListening();
   caption("You", said);
-  const res = await fetch("/api/simulate/reply", {
+
+  // Fire the request FIRST, then fill the dead air with a short "right,
+  // got it…" while it's in flight. The backchannel is pre-cached server
+  // side, so it costs ~0 added time and hides the LLM+TTS round trip —
+  // which is what actually makes the agent feel slow. If the reply comes
+  // back fast there's no dead air to fill, so skip it rather than padding.
+  const pending = fetch("/api/simulate/reply", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ callId, text: said }),
   });
+  const raced = await Promise.race([
+    pending.then(() => "ready").catch(() => "ready"),
+    new Promise((resolve) => setTimeout(() => resolve("slow"), 350)),
+  ]);
+  if (raced === "slow") await playFiller();
+
+  const res = await pending;
   const data = await res.json();
   await playAgent(data.agent, data.via, data.sources);
   busy = false;
@@ -312,6 +354,8 @@ async function startCall() {
   language = lead.preferred_language;
   listenerReady = false;
   nudges = 0;
+  lastFiller = "";
+  void loadFillers(language);
 
   try {
     await unlockAudio();

@@ -130,6 +130,24 @@ async function windowsSpeak(text: string, language: string): Promise<{ buffer: B
 const AUDIO_CACHE_LIMIT = 200;
 const audioCache = new Map<string, { buffer: Buffer; type: string }>();
 
+/**
+ * Synthesize a set of lines up front so they're already in the cache when the
+ * call needs them. Used for the backchannels the agent says while thinking —
+ * those must feel instant or they defeat their own purpose.
+ */
+export async function prewarmSpeech(lines: Array<{ text: string; language: string }>): Promise<number> {
+  let warmed = 0;
+  for (const line of lines) {
+    try {
+      await synthesizeSpeech(line.text, line.language);
+      warmed += 1;
+    } catch (error) {
+      console.warn(`TTS prewarm skipped "${line.text.slice(0, 30)}":`, error instanceof Error ? error.message : error);
+    }
+  }
+  return warmed;
+}
+
 export async function synthesizeSpeech(
   text: string,
   language: string,

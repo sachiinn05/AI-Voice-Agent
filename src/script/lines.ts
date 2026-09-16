@@ -97,6 +97,25 @@ export function defaultMeetingSlots(language: PreferredLanguage = "en-IN"): stri
   return out;
 }
 
+/**
+ * Short backchannels the agent says the instant the caller stops talking,
+ * while intent classification and the real reply are still being generated.
+ * A real person does this ("right…", "got it…") — and it hides the 2-4s the
+ * LLM + TTS need, which is what actually makes a voice agent feel slow.
+ *
+ * Kept deliberately tiny and fixed: they pre-synthesize into the TTS cache at
+ * startup, so they play in ~200ms instead of a fresh network round trip.
+ */
+export function thinkingFillers(language: PreferredLanguage): string[] {
+  if (hi(language)) {
+    return ["Haan, samajh gaya.", "Achha, theek hai.", "Hmm, bilkul.", "Ji, samajh raha hoon."];
+  }
+  if (language === "en-IN") {
+    return ["Right, got it.", "Okay, understood.", "Hmm, sure.", "Yeah, I hear you."];
+  }
+  return ["Right, got it.", "Okay, sure.", "Mm-hmm.", "Yeah, I hear you."];
+}
+
 /** Outbound cold-open: say who's calling and why, then ask for a minute. Nothing else. */
 export function openingLine(lead: Lead, language: PreferredLanguage): string {
   const name = firstName(lead);

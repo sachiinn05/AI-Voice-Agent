@@ -13,9 +13,10 @@ import { embeddingStatus } from "./embeddings/service.js";
 import { groqEnabled, groqStatus } from "./llm/groq.js";
 import { dashboardRouter } from "./routes/dashboard.js";
 import { knowledgeRouter } from "./routes/knowledge.js";
+import { thinkingFillers } from "./script/lines.js";
 import { createSession, endCallManually, nudge, startCall } from "./script/stateMachine.js";
-import { LeadSchema, type Session } from "./types.js";
-import { synthesizeSpeech } from "./tts.js";
+import { LeadSchema, PreferredLanguageSchema, type Session } from "./types.js";
+import { prewarmSpeech, synthesizeSpeech } from "./tts.js";
 import { describeRouting, routeVoice } from "./voice/routing.js";
 
 const sessions = new Map<string, Session>();
@@ -71,6 +72,12 @@ app.get("/api/routing", (_req, res) => {
     "hi-IN-hinglish": routeVoice("hi-IN-hinglish"),
     note: describeRouting(),
   });
+});
+
+/** Backchannels the browser plays instantly while the real reply is generated. */
+app.get("/api/fillers", (req, res) => {
+  const language = PreferredLanguageSchema.catch("en-IN").parse(req.query.language);
+  res.json({ language, fillers: thinkingFillers(language) });
 });
 
 app.post("/api/simulate/start", async (req, res) => {
@@ -222,4 +229,13 @@ app.listen(config.port, () => {
   console.log("Voice agent: open the dashboard, press Call, allow the mic, and talk.");
   console.log(groqEnabled() ? "Groq is on — it classifies intent; the script speaks." : "Groq is off — keyword intent + scripted lines.");
   console.log("Real dials need VAPI_API_KEY + VAPI_PHONE_NUMBER_ID.");
+
+  // Warm the backchannels in the background so the first "right, got it…"
+  // is instant instead of a cold 2s synthesis.
+  const warmup = PreferredLanguageSchema.options.flatMap((language) =>
+    thinkingFillers(language).map((text) => ({ text, language })),
+  );
+  void prewarmSpeech(warmup).then((count) => {
+    console.log(`Warmed ${count}/${warmup.length} backchannel clips.`);
+  });
 });
