@@ -11,3 +11,6 @@ knowledge/*.pdf
 
 # Personal notes, not project source
 Lipi-AI-Complete-Interview-Handbook.pdf
+
+# Local voice A/B samples (npm run voices -- --sample)
+.voice-samples/

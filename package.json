@@ -12,7 +12,8 @@
     "ingest": "tsx src/cli.ts ingest",
     "tunnel": "ngrok http 3000",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "voices": "tsx scripts/voices.ts"
   },
   "dependencies": {
     "@types/express": "^5.0.6",

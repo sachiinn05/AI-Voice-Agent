@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { execFile } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -7,10 +8,26 @@ import { MsEdgeTTS, OUTPUT_FORMAT } from "msedge-tts";
 
 const execFileAsync = promisify(execFile);
 
+function env(name: string, fallback: string): string {
+  return (process.env[name] ?? "").trim() || fallback;
+}
+
+/**
+ * Edge neural voices, free and keyless. Override per language in .env to A/B
+ * a different one — `npm run voices` lists every voice Edge exposes.
+ *
+ * Defaults:
+ * - en-US: Ava (multilingual) is Microsoft's newer conversational voice and
+ *   sounds markedly less "read-aloud" than the older Jenny.
+ * - en-IN / Hinglish: Neerja Expressive carries more conversational prosody
+ *   than plain Neerja. Note Hinglish is deliberately spoken by an
+ *   Indian-English voice, not a hi-IN one: the script is romanized Hindi
+ *   ("main aapki help kar sakta hoon") and hi-IN voices expect Devanagari.
+ */
 const VOICES: Record<string, string> = {
-  "en-US": "en-US-JennyNeural",
-  "en-IN": "en-IN-NeerjaNeural",
-  "hi-IN-hinglish": "en-IN-NeerjaNeural",
+  "en-US": env("TTS_EDGE_VOICE_EN_US", "en-US-AvaMultilingualNeural"),
+  "en-IN": env("TTS_EDGE_VOICE_EN_IN", "en-IN-NeerjaExpressiveNeural"),
+  "hi-IN-hinglish": env("TTS_EDGE_VOICE_HINGLISH", "en-IN-NeerjaExpressiveNeural"),
 };
 
 function escapeXml(text: string): string {
