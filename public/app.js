@@ -11,7 +11,14 @@ import {
   voice,
 } from "./voice.js";
 
-const leadsEl = document.getElementById("leads");
+const agentListEl = document.getElementById("agent-list");
+const leadPickerEl = document.getElementById("lead-picker");
+const leadPickerHint = document.getElementById("lead-picker-hint");
+const leadSearchEl = document.getElementById("lead-search");
+const leadGridEl = document.getElementById("lead-grid");
+const startSummaryEl = document.getElementById("start-summary");
+const startCallBtn = document.getElementById("start-call-btn");
+const callScreenEl = document.getElementById("call-screen");
 const callsEl = document.getElementById("calls");
 const resultEl = document.getElementById("result");
 const phoneEl = document.querySelector(".phone");
@@ -21,18 +28,21 @@ const nameEl = document.getElementById("name");
 const metaEl = document.getElementById("meta");
 const timerEl = document.getElementById("timer");
 const captionEl = document.getElementById("caption");
-const callBtn = document.getElementById("call-btn");
 const testBtn = document.getElementById("test-btn");
 const hangupBtn = document.getElementById("hangup-btn");
+const newCallBtn = document.getElementById("new-call-btn");
 const replyBar = document.getElementById("reply-bar");
 const talkBtn = document.getElementById("talk-btn");
 const typedReply = document.getElementById("typed-reply");
 const wave = document.getElementById("wave");
 
+let agents = [];
+let selectedAgentId = null;
+let leadQuery = "";
 let leads = [];
+let selectedLead = null;
 let recentCalls = [];
 let selectedCall = -1;
-let selected = 0;
 let callId = null;
 let language = "en-IN";
 let inCall = false;
@@ -65,16 +75,12 @@ function clock() {
   timerEl.textContent = `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
 
-function renderLeads() {
-  leadsEl.innerHTML = leads
-    .map(
-      (lead, i) => `
-      <button class="lead ${i === selected ? "active" : ""}" data-i="${i}" type="button">
-        <strong>${lead.contact_name}</strong>
-        <span class="meta">${lead.contact_role || lead.company_name}</span>
-        <span class="lang">${lead.preferred_language}</span>
-      </button>`,
-    )
+function initials(name) {
+  return (name || "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0].toUpperCase())
     .join("");
 }
 
@@ -83,10 +89,119 @@ function showLead(lead) {
   metaEl.textContent = `${lead.company_name} · ${lead.preferred_language}`;
 }
 
-async function loadLeads() {
-  leads = await (await fetch("/api/leads")).json();
-  renderLeads();
-  if (leads[selected]) showLead(leads[selected]);
+function currentAgent() {
+  return agents.find((a) => a.id === selectedAgentId) || null;
+}
+
+function renderAgents() {
+  agentListEl.innerHTML = agents
+    .map(
+      (a) => `
+      <button class="agent-card ${a.id === selectedAgentId ? "active" : ""}" data-agent="${a.id}" type="button">
+        <span class="agent-top"><span class="agent-flag">${a.flag}</span><span class="agent-voice">${escapeHtml(a.voice.provider)}</span></span>
+        <strong>${escapeHtml(a.name)}</strong>
+        <span class="meta">${escapeHtml(a.tagline)}</span>
+      </button>`,
+    )
+    .join("");
+}
+
+function matchingLeads() {
+  const agent = currentAgent();
+  if (!agent) return [];
+  const q = leadQuery.trim().toLowerCase();
+  return leads
+    .filter((lead) => lead.preferred_language === agent.language)
+    .filter((lead) => !q || `${lead.contact_name} ${lead.company_name} ${lead.industry}`.toLowerCase().includes(q));
+}
+
+function renderLeadGrid() {
+  const agent = currentAgent();
+  if (!agent) {
+    leadSearchEl.hidden = true;
+    leadPickerHint.textContent = "Pick an agent to see matching leads.";
+    leadGridEl.innerHTML = `<p class="hint">Choose an agent on the left to see who it can call.</p>`;
+    return;
+  }
+  const list = matchingLeads();
+  leadSearchEl.hidden = false;
+  leadPickerHint.textContent = `${list.length} lead${list.length === 1 ? "" : "s"} speak ${agent.name.replace(" Agent", "")}.`;
+  leadGridEl.innerHTML = list.length
+    ? list
+        .map(
+          (lead) => `
+        <button class="lead-card ${selectedLead?.contact_number === lead.contact_number ? "active" : ""}" data-number="${escapeHtml(lead.contact_number)}" type="button">
+          <span class="lead-avatar">${escapeHtml(initials(lead.contact_name))}</span>
+          <span class="lead-info">
+            <strong>${escapeHtml(lead.contact_name)}</strong>
+            <span class="meta">${escapeHtml(lead.contact_role || "")} · ${escapeHtml(lead.company_name)}</span>
+            <span class="lead-need">${escapeHtml(lead.need_for_bot || lead.company_description)}</span>
+          </span>
+        </button>`,
+        )
+        .join("")
+    : `<p class="hint">No leads match "${escapeHtml(leadQuery)}".</p>`;
+}
+
+function updateStartFooter() {
+  testBtn.disabled = !selectedAgentId;
+  if (selectedLead) {
+    startSummaryEl.innerHTML = `Ready to call <strong>${escapeHtml(selectedLead.contact_name)}</strong> at ${escapeHtml(selectedLead.company_name)}.`;
+    startCallBtn.disabled = false;
+  } else if (selectedAgentId) {
+    startSummaryEl.textContent = "Select a lead to continue.";
+    startCallBtn.disabled = true;
+  } else {
+    startSummaryEl.textContent = "Select an agent, then a lead, to continue.";
+    startCallBtn.disabled = true;
+  }
+}
+
+function selectAgent(id) {
+  if (inCall || id === selectedAgentId) return;
+  selectedAgentId = id;
+  selectedLead = null;
+  leadQuery = "";
+  leadSearchEl.value = "";
+  renderAgents();
+  renderLeadGrid();
+  updateStartFooter();
+}
+
+function selectLead(number) {
+  const lead = matchingLeads().find((l) => l.contact_number === number);
+  if (!lead) return;
+  selectedLead = lead;
+  renderLeadGrid();
+  updateStartFooter();
+}
+
+function showPicker() {
+  leadPickerEl.classList.remove("hidden");
+  callScreenEl.classList.add("hidden");
+}
+
+function showCallScreen() {
+  leadPickerEl.classList.add("hidden");
+  callScreenEl.classList.remove("hidden");
+}
+
+function resetToPicker() {
+  selectedLead = null;
+  newCallBtn.hidden = true;
+  renderLeadGrid();
+  updateStartFooter();
+  showPicker();
+}
+
+async function loadAgentsAndLeads() {
+  [agents, leads] = await Promise.all([
+    (await fetch("/api/agents")).json(),
+    (await fetch("/api/leads")).json(),
+  ]);
+  renderAgents();
+  renderLeadGrid();
+  updateStartFooter();
 }
 
 function escapeHtml(text) {
@@ -319,10 +434,9 @@ async function finish(result) {
   stopSpeaking();
   closeMic();
   clearInterval(tick);
-  callBtn.hidden = false;
-  testBtn.hidden = false;
   hangupBtn.hidden = true;
   replyBar.hidden = true;
+  newCallBtn.hidden = false;
   callId = null;
   setPhase("ended");
   if (result) {
@@ -350,20 +464,25 @@ async function hangup() {
 }
 
 async function startCall() {
-  const lead = leads[selected];
+  const lead = selectedLead;
   if (!lead || inCall) return;
-  callBtn.disabled = true;
+  startCallBtn.disabled = true;
   language = lead.preferred_language;
   listenerReady = false;
   nudges = 0;
   lastFiller = "";
   void loadFillers(language);
 
+  showCallScreen();
+  showLead(lead);
+  newCallBtn.hidden = true;
+
   try {
     await unlockAudio();
   } catch {
-    captionEl.textContent = "Click Call again so the browser can unlock sound.";
-    callBtn.disabled = false;
+    captionEl.textContent = "Click Start call again so the browser can unlock sound.";
+    startCallBtn.disabled = false;
+    showPicker();
     return;
   }
 
@@ -382,11 +501,9 @@ async function startCall() {
   callId = data.callId;
   startedAt = Date.now();
   tick = setInterval(clock, 250);
-  callBtn.hidden = true;
-  testBtn.hidden = true;
   hangupBtn.hidden = false;
   replyBar.hidden = false;
-  callBtn.disabled = false;
+  startCallBtn.disabled = false;
 
   await playAgent(data.agent, data.via);
   if (!inCall) return;
@@ -402,27 +519,34 @@ callsEl.addEventListener("click", (event) => {
   void loadCalls();
 });
 
-leadsEl.addEventListener("click", (event) => {
-  const btn = event.target.closest("[data-i]");
+agentListEl.addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-agent]");
+  if (!btn) return;
+  selectAgent(btn.dataset.agent);
+});
+
+leadGridEl.addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-number]");
   if (!btn || inCall) return;
-  selected = Number(btn.dataset.i);
-  renderLeads();
-  showLead(leads[selected]);
+  selectLead(btn.dataset.number);
+});
+
+leadSearchEl.addEventListener("input", () => {
+  leadQuery = leadSearchEl.value;
+  renderLeadGrid();
 });
 
 testBtn.addEventListener("click", async () => {
   testBtn.disabled = true;
-  const lead = leads[selected];
-  const lang = lead?.preferred_language || "en-IN";
+  const lang = currentAgent()?.language || selectedLead?.preferred_language || "en-IN";
   try {
     await unlockAudio();
     await ensureMic();
-    setPhase("speaking");
-    await speak("Hi, this is the company AI. You should hear me now. Press Call, then say okay.", lang);
-    setPhase("");
-    captionEl.textContent = "Speaker works. Press Call, then say okay.";
+    startSummaryEl.textContent = "Playing a test line…";
+    await speak("Hi, this is the company AI. You should hear me now.", lang);
+    startSummaryEl.textContent = "Speaker works. Choose a lead, then Start call.";
   } catch {
-    captionEl.textContent = "Unmute this Chrome tab, then click Test speaker again.";
+    startSummaryEl.textContent = "Unmute this browser tab, then try Test speaker again.";
   }
   testBtn.disabled = false;
 });
@@ -445,11 +569,14 @@ replyBar.addEventListener("submit", (event) => {
   void sendUtterance(text);
 });
 
-callBtn.addEventListener("click", () => {
+startCallBtn.addEventListener("click", () => {
   void startCall();
 });
 hangupBtn.addEventListener("click", () => {
   void hangup();
+});
+newCallBtn.addEventListener("click", () => {
+  resetToPicker();
 });
 
 function paint() {
@@ -515,10 +642,10 @@ async function loadLeadTable() {
   const rows = await (await fetch("/api/leads")).json();
   document.getElementById("lead-table").innerHTML = `
     <table>
-      <thead><tr><th>Name</th><th>Company</th><th>Role</th><th>Language</th><th>Need</th></tr></thead>
+      <thead><tr><th>Name</th><th>Company</th><th>Industry</th><th>Role</th><th>Language</th><th>Need</th></tr></thead>
       <tbody>${rows
         .map(
-          (lead) => `<tr><td>${escapeHtml(lead.contact_name)}</td><td>${escapeHtml(lead.company_name)}</td><td>${escapeHtml(lead.contact_role || "")}</td><td>${escapeHtml(lead.preferred_language)}</td><td>${escapeHtml(lead.need_for_bot || lead.company_description)}</td></tr>`,
+          (lead) => `<tr><td>${escapeHtml(lead.contact_name)}</td><td>${escapeHtml(lead.company_name)}</td><td>${escapeHtml(lead.industry)}</td><td>${escapeHtml(lead.contact_role || "")}</td><td>${escapeHtml(lead.preferred_language)}</td><td>${escapeHtml(lead.need_for_bot || lead.company_description)}</td></tr>`,
         )
         .join("")}</tbody>
     </table>`;
@@ -591,5 +718,5 @@ document.querySelector(".tabs")?.addEventListener("click", (event) => {
   showView(btn.dataset.view);
 });
 
-loadLeads();
+loadAgentsAndLeads();
 loadCalls();

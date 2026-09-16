@@ -12,7 +12,7 @@ You press Call. The agent speaks. You say “okay” or “I’m busy.” It ans
 
 **45 seconds**
 
-> Companies miss calls — a hospital at night, a shop when someone asks “where is my order.” I built an AI that can *talk*, not just chat. It greets you, explains the problem in simple words, handles “not interested” or “how much,” and books a slot on my Calendly. The demo is three fake people: a hospital front desk, a grocery app, and a dental clinic. I used a state machine so the spoken lines stay locked, Groq only to understand what the person said, and speech in/out in the browser so I can demo it without buying a phone number.
+> Companies miss calls — a hospital at night, a shop when someone asks “where is my order.” I built an AI that can *talk*, not just chat. It greets you, explains the problem in simple words, handles “not interested” or “how much,” and books a slot on my Calendly. The demo ships 3 voice agents (Hinglish, Indian English, US English) and 24 fake leads across hospitals, grocery apps, clinics, gyms, law firms and more — pick an agent, pick a lead, call. I used a state machine so the spoken lines stay locked, Groq only to understand what the person said, and speech in/out in the browser so I can demo it without buying a phone number.
 
 **If they ask “what did you actually code?”**
 
@@ -22,13 +22,17 @@ You press Call. The agent speaks. You say “okay” or “I’m busy.” It ans
 
 > That was old demo jargon. I replaced it. The story is now hospital, grocery orders, and a clinic. Anyone in the room can follow it.
 
-## Demo contacts
+## Demo agents & leads
 
-| Who | Easy story | Language |
+Three agents, one script, one brain each — only the voice and language differ:
+
+| Agent | Language | Voice |
 |---|---|---|
-| Ananya · CityCare Hospital | Night patient calls, nobody picks up | Hinglish |
-| Rohan · FreshBasket | “Where is my order?” calls | Indian English |
-| Emily · BrightSmile Clinic | Appointment line always busy | US English |
+| Hinglish Agent | `hi-IN-hinglish` | Sarvam Bulbul |
+| Indian English Agent | `en-IN` | Sarvam Bulbul |
+| US English Agent | `en-US` | Edge / ElevenLabs |
+
+[`data/leads.csv`](data/leads.csv) ships 24 leads (8 per agent, mixed gender) across hospitals, grocery/pharmacy delivery, dental clinics, salons, gyms, auto shops, law firms, real estate, insurance and more — enough variety that back-to-back demo calls don't feel like the same call twice. Add your own rows any time; `gender` (`male`/`female`) only affects Hindi grammar agreement, everything else personalizes automatically from `industry` / `company_description` / `need_for_bot`.
 
 ## Run
 
@@ -37,7 +41,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Pick **Ananya**, click **Call**, say **okay** twice, then pick a time.
+Open [http://localhost:3000](http://localhost:3000). Pick an **agent**, pick a **lead**, click **Start call**, say **okay** twice, then pick a time.
 
 ## How it works
 
@@ -53,7 +57,7 @@ Open [http://localhost:3000](http://localhost:3000). Pick **Ananya**, click **Ca
 Everything the agent says is in [`scripts/call-script.yaml`](scripts/call-script.yaml), written top to bottom like the call itself. Placeholders like `{name}`, `{company}`, `{calls}` fill in per lead; `topics:` maps a lead's industry to the story it hears. Add a question callers keep asking to `faq:` with a few `ask:` phrasings and it starts working on restart.
 
 ```bash
-npm test          # 88 tests, including one that renders every line in every language
+npm test          # 89 tests, including one that renders every line in every language
 npm run voices    # list the free Edge voices; -- --sample renders A/B clips
 ```
 

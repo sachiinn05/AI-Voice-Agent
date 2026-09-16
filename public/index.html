@@ -11,7 +11,7 @@
     <div>
       <p class="eyebrow">Lipi.ai · One-company voice agent</p>
       <h1>Company voice desk</h1>
-      <p class="sub">One script file runs the whole call — every line, every objection, every FAQ answer. Groq only understands what the caller meant.</p>
+      <p class="sub">One script file runs the whole call — every line, every objection, every FAQ answer. Groq only understands what the caller meant. Three agents, 24 leads to practice on.</p>
     </div>
     <p class="mode">Browser voice now · Phone via Vapi when keys are set</p>
   </header>
@@ -28,32 +28,51 @@
 
   <main id="view-live" class="stage view">
     <aside class="dialer">
-      <h2>Who to call</h2>
-      <p class="hint">Same script, three stories — a hospital, a grocery app, a dental clinic.</p>
-      <div id="leads" class="list"></div>
+      <div class="step-label"><span class="step-dot">1</span> Choose your agent</div>
+      <p class="hint">Same script and brain — a different voice and language each.</p>
+      <div id="agent-list" class="agent-list"></div>
     </aside>
 
-    <section class="phone" aria-live="polite">
-      <p id="status" class="status">Ready</p>
-      <p id="via-badge" class="via-badge">Script locked · Groq only hears intent</p>
-      <canvas id="wave" width="320" height="72" aria-hidden="true"></canvas>
-      <div id="avatar" class="avatar">AI</div>
-      <h2 id="name">Select a contact</h2>
-      <p id="meta" class="meta">Lipi.ai outbound voice agent</p>
-      <p id="timer" class="timer">00:00</p>
-      <p id="caption" class="caption">Click Test speaker, then Call. After she talks, say okay — or type it.</p>
+    <section class="stage-center">
+      <section id="lead-picker" class="lead-picker">
+        <div class="picker-head">
+          <div>
+            <div class="step-label"><span class="step-dot">2</span> Choose a lead</div>
+            <p class="hint" id="lead-picker-hint">Pick an agent to see matching leads.</p>
+          </div>
+          <input id="lead-search" class="lead-search" type="search" placeholder="Search leads…" hidden />
+        </div>
+        <div id="lead-grid" class="lead-grid"></div>
+        <div class="picker-footer">
+          <p id="start-summary" class="hint">Select an agent, then a lead, to continue.</p>
+          <div class="picker-footer-actions">
+            <button id="test-btn" class="test-btn" type="button" disabled>Test speaker</button>
+            <button id="start-call-btn" class="call-btn" type="button" disabled>Start call</button>
+          </div>
+        </div>
+      </section>
 
-      <form id="reply-bar" class="reply-bar" hidden>
-        <button id="talk-btn" class="talk-btn" type="button">Talk</button>
-        <input id="typed-reply" type="text" placeholder="Type okay / haan if mic misses you" autocomplete="off" />
-        <button type="submit">Send</button>
-      </form>
+      <section id="call-screen" class="phone hidden" aria-live="polite">
+        <p id="status" class="status">Ready</p>
+        <p id="via-badge" class="via-badge">Script locked · Groq only hears intent</p>
+        <canvas id="wave" width="320" height="72" aria-hidden="true"></canvas>
+        <div id="avatar" class="avatar">AI</div>
+        <h2 id="name">Select a contact</h2>
+        <p id="meta" class="meta">Lipi.ai outbound voice agent</p>
+        <p id="timer" class="timer">00:00</p>
+        <p id="caption" class="caption">Say okay — or type it — when she's done talking.</p>
 
-      <div class="controls">
-        <button id="test-btn" class="test-btn" type="button">Test speaker</button>
-        <button id="call-btn" class="call-btn" type="button">Call</button>
-        <button id="hangup-btn" class="hangup" type="button" hidden>End</button>
-      </div>
+        <form id="reply-bar" class="reply-bar" hidden>
+          <button id="talk-btn" class="talk-btn" type="button">Talk</button>
+          <input id="typed-reply" type="text" placeholder="Type okay / haan if mic misses you" autocomplete="off" />
+          <button type="submit">Send</button>
+        </form>
+
+        <div class="controls">
+          <button id="hangup-btn" class="hangup" type="button" hidden>End</button>
+          <button id="new-call-btn" class="call-btn" type="button" hidden>New call</button>
+        </div>
+      </section>
     </section>
 
     <aside class="after">

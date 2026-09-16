@@ -17,6 +17,7 @@ import { LeadSchema, PreferredLanguageSchema, type Session } from "./types.js";
 import { prewarmSpeech, synthesizeSpeech, ttsProviderFor } from "./tts.js";
 import { transcribeAudio } from "./stt.js";
 import { describeRouting, routeVoice } from "./voice/routing.js";
+import { agentsWithVoice } from "./voice/agents.js";
 
 const sessions = new Map<string, Session>();
 
@@ -44,6 +45,11 @@ app.get("/api/health", (_req, res) => {
 
 app.get("/api/leads", async (_req, res) => {
   res.json(await loadLeads());
+});
+
+/** The 3 callable personas — pick one, then only its matching leads show up. */
+app.get("/api/agents", (_req, res) => {
+  res.json(agentsWithVoice());
 });
 
 app.get("/api/calls", async (_req, res) => {
