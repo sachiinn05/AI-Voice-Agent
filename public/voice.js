@@ -12,7 +12,34 @@ export const voice = {
   ignoreUntil: 0,
   player: new Audio(),
   objectUrl: "",
+  currentText: "",
 };
+
+function normalizeWords(text) {
+  return text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Without headphones, the mic can pick up the agent's own TTS coming out of
+ * the speaker — browser echo cancellation isn't guaranteed to fully catch
+ * audio played from a plain <audio> element the way it does a real call. If
+ * what was "heard" is mostly just the sentence the agent is currently
+ * speaking, treat it as echo, not a genuine interruption.
+ */
+export function looksLikeEcho(heard, spoken) {
+  const h = normalizeWords(heard || "");
+  const s = normalizeWords(spoken || "");
+  if (!h || !s) return false;
+  if (s.includes(h)) return true;
+  const heardWords = h.split(" ");
+  const spokenWords = new Set(s.split(" "));
+  const overlap = heardWords.filter((w) => spokenWords.has(w)).length;
+  return overlap / heardWords.length >= 0.7;
+}
 
 const LOCALE = {
   "en-US": "en-US",
@@ -148,6 +175,7 @@ export async function speak(text, language) {
   stopSpeaking();
   voice.speaking = true;
   voice.ignoreUntil = Date.now() + 400;
+  voice.currentText = text;
   try {
     const res = await fetch("/api/tts", {
       method: "POST",
@@ -196,6 +224,7 @@ export function createListener({ language, onPartial, onFinal, onBargeIn, onIdle
 
     if (voice.speaking) {
       if (Date.now() < voice.ignoreUntil) return;
+      if (looksLikeEcho(text, voice.currentText)) return;
       if (/\b(okay|ok|haan|stop|wait)\b/i.test(text) || text.split(/\s+/).length >= 2) {
         stopSpeaking();
         onBargeIn?.(text);
