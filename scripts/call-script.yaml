@@ -225,7 +225,7 @@ steering:
 
 
 # -----------------------------------------------------------------------------
-#  OBJECTIONS — the eight things people actually say, and the comeback
+#  OBJECTIONS — the eleven things people actually say, and the comeback
 # -----------------------------------------------------------------------------
 #  Technique notes are in the comments. Rules the code enforces:
 #   • "not interested" or "who gave you my number" twice → we wrap up. No third try.
@@ -273,6 +273,21 @@ objections:
   call_later:
     en: "Sure, I can call back. Or if it's easier, lock one time now — {slots}?"
     hi: "Sure, main baad mein call kar sakta hoon. Waise agar convenient ho toh {slots} mein se ek time fix kar dein?"
+
+  # Don't push past the gatekeeper. Make it easy to forward, offer to include them.
+  not_decision_maker:
+    en: "No problem — I'll keep it quick so you can pass it along properly. Want me to walk you through it now, or set up a short demo with both of you?"
+    hi: "Koi baat nahi — main jaldi rakhta hoon taaki aap sahi se aage bata sakein. Main abhi quickly samjha doon, ya dono ke saath short demo rakh doon?"
+
+  # Agree, then make the demo the easy way to actually decide — not just an email.
+  need_to_think:
+    en: "Totally fair, take your time. Most people find it easier to decide after seeing it work on a real call, not just hearing about it — that's exactly what the demo shows. Want to pencil in a time, no commitment either way?"
+    hi: "Bilkul, soch lijiye. Zyadatar logon ko decide karna aasan hota hai jab woh live demo mein kaam karte dekh lete hain. Ek time pencil kar doon — koi commitment nahi hai?"
+
+  # Validate, differentiate from the bad bots, make the demo the stakes-free test.
+  bad_past_experience:
+    en: "That's fair — a lot of bots sound robotic and fall apart the moment something's unexpected. This one's built to actually hold a conversation, which is exactly what the demo tests. If it does the same thing yours did, you'll know in two minutes."
+    hi: "Bilkul samajh sakta hoon — bahut saare bots robotic sound karte hain aur alag sawaal aate hi atak jaate hain. Yeh real conversation handle karne ke liye bana hai — demo mein wahi test ho jaayega. Agar wahi purana problem repeat hua, do minute mein pata chal jaayega."
 
 
 # -----------------------------------------------------------------------------

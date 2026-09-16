@@ -62,6 +62,9 @@ export const ScriptSchema = z.object({
     no_time: Line,
     who_gave_number: Line,
     call_later: Line,
+    not_decision_maker: Line,
+    need_to_think: Line,
+    bad_past_experience: Line,
   }),
   faq: z
     .array(

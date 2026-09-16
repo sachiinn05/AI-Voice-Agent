@@ -30,6 +30,18 @@ const PATTERNS: Array<{ intent: Intent; re: RegExp }> = [
   { intent: "send_email", re: /\b(send (me )?(an? )?email|email me|email bhej|whatsapp)\b/i },
   { intent: "call_later", re: /\b(call (me )?(later|back)|baad mein|next week|kal call)\b/i },
   {
+    intent: "not_decision_maker",
+    re: /\b(not (the )?(decision maker|right person)|talk to my (boss|manager|team)|need to (check|ask) with (my )?(boss|manager|team)|not my call|i don'?t decide|boss se poochna|manager se baat|mera decision nahi)\b/i,
+  },
+  {
+    intent: "need_to_think",
+    re: /\b(let me think|i'?ll think about it|need (some )?time to think|get back to you( on this)?|sochna padega|soch (ke|kar) bataata|soch ke dekhta)\b/i,
+  },
+  {
+    intent: "bad_past_experience",
+    re: /\b(tried (something|a bot|this) before|didn'?t work (for us|out)|bad experience|these bots (never|don'?t)|used (something|a bot) like this|pehle (try|use) kiya tha|kaam nahi kiya tha|accha experience nahi)\b/i,
+  },
+  {
     intent: "no_time",
     re: /no time|can't talk|bad time|time nahi|time nhi|abhi time nahi|abhi nahi|abhi busy|(?:ek |1 )?min(?:ute)?s?\s*(nahi|nhi)|(mere )?paas.{0,24}(nahi|nhi)|(nahi|nhi)\s+(mil|ho sakta|ho sakte|de sakti|baat kar)|nahi mil|nhi mil|mil sakte/i,
   },
