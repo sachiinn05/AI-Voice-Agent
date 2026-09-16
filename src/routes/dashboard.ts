@@ -1,13 +1,22 @@
 import { Router } from "express";
 import { config } from "../config.js";
 import { loadCalls, loadLeads } from "../leads/store.js";
-import { loadQuestions } from "../leads/questions.js";
-import { countChunks, listDocuments } from "../rag/vectorStore.js";
+import { getScript } from "../script/scriptFile.js";
 
 export const dashboardRouter = Router();
 
+/** Every question callers have asked across saved calls, and which FAQ entry answered it. */
 dashboardRouter.get("/api/questions", async (_req, res) => {
-  res.json(await loadQuestions());
+  const calls = await loadCalls();
+  const rows = calls.flatMap((call) =>
+    (call.questions_asked ?? []).map((q) => ({
+      ...q,
+      callId: call.call_id,
+      contactName: call.lead?.contact_name ?? "",
+    })),
+  );
+  rows.sort((a, b) => b.at.localeCompare(a.at));
+  res.json(rows);
 });
 
 dashboardRouter.get("/api/bookings", async (_req, res) => {
@@ -26,17 +35,15 @@ dashboardRouter.get("/api/bookings", async (_req, res) => {
   );
 });
 
-dashboardRouter.get("/api/dashboard", async (_req, res) => {
-  const [calls, leads, questions] = await Promise.all([loadCalls(), loadLeads(), loadQuestions()]);
-  let documents = 0;
-  let chunks = 0;
-  try {
-    documents = (await listDocuments()).length;
-    chunks = await countChunks();
-  } catch {
-    /* knowledge is optional until Mongo is configured */
-  }
+/** The script itself, for the dashboard's Script tab. */
+dashboardRouter.get("/api/script", (_req, res) => {
+  res.json({ path: config.scriptPath, script: getScript() });
+});
 
+dashboardRouter.get("/api/dashboard", async (_req, res) => {
+  const [calls, leads] = await Promise.all([loadCalls(), loadLeads()]);
+  const questions = calls.flatMap((call) => call.questions_asked ?? []);
+  const unanswered = questions.filter((q) => !q.faqId);
   const booked = calls.filter((call) => call.disposition === "Meeting Booked" || call.meeting_details);
   res.json({
     company: {
@@ -49,11 +56,12 @@ dashboardRouter.get("/api/dashboard", async (_req, res) => {
       booked: booked.length,
       leads: leads.length,
       questions: questions.length,
-      documents,
-      chunks,
+      // Questions the script had no answer for — the list to grow the FAQ from.
+      unanswered: unanswered.length,
+      faqEntries: getScript().faq.length,
     },
     recentCalls: calls.slice(0, 12),
     bookings: booked.slice(0, 12),
-    questions: questions.slice(0, 12),
+    unansweredQuestions: unanswered.slice(0, 12),
   });
 });

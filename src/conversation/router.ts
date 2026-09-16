@@ -15,6 +15,21 @@ export function looksLikeQuestion(text: string): boolean {
   return QUESTION_RE.test(text);
 }
 
+// Intents under which a question-shaped utterance should be tried against
+// the FAQ. Objections (how_much, is_this_ai…) are deliberately NOT here: the
+// script's objection lines already answer those and drive to the close.
+// Exits/booking/slot intents aren't either — those have to win outright.
+const FAQ_INTENTS = new Set<Intent>(["company_knowledge", "unclear", "acknowledge", "interested", "gatekeeper", "voicemail"]);
+
+/**
+ * Should this turn be tried against the script FAQ first? The LLM often
+ * labels a real question as `unclear` ("hindi mein baat karega?") — the
+ * shape of the text is a better signal than the label.
+ */
+export function wantsFaq(intent: Intent, text: string): boolean {
+  return FAQ_INTENTS.has(intent) && looksLikeQuestion(text) && !BOOKING_RE.test(text);
+}
+
 export function classifyRoute(intent: Intent, text: string, state?: CallState): ConversationRoute {
   if (END_INTENTS.has(intent)) return "conversation";
   if (intent === "booking_request" || BOOKING_RE.test(text)) return "booking";

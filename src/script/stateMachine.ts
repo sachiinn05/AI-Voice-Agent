@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import type { CallState, Intent, KnowledgeSource, Lead, Session, TranscriptTurn } from "../types.js";
+import type { CallState, Intent, Lead, Session, TranscriptTurn } from "../types.js";
 import { detectIntent, isContinue, isOffScript } from "./intent.js";
 import {
+  availabilityCapturedLine,
   closeLine,
   confirmSlotLine,
   contextBridge,
@@ -16,6 +17,7 @@ import {
   pitchLine,
   silenceHangupLine,
   wrapUpLine,
+  wrongPersonLine,
 } from "./lines.js";
 import { intentToObjection, rebuttal } from "./objections.js";
 
@@ -57,7 +59,7 @@ export function createSession(lead: Lead, callId = randomUUID()): Session {
     startedAt: Date.now(),
     ended: false,
     silenceNudges: 0,
-    knowledgeQuestions: [],
+    questionsAsked: [],
   };
 }
 
@@ -83,13 +85,6 @@ function hoursIn(text: string): Set<string> {
 }
 
 /**
- * defaultMeetingSlots() picks the next two actual weekdays, so which one is
- * "Monday" vs "Tuesday" shifts by the day the call happens. Match against
- * what was actually offered instead of assuming a fixed first=Monday,
- * second=Tuesday mapping — that assumption silently booked the wrong day
- * whenever the real slots landed on any other weekday pair.
- */
-/**
  * Does the caller's reply name one of the slots we just offered (a weekday,
  * an hour, or "first/second")? Used to override the LLM's intent label in
  * CLOSE: in real calls "Wednesday" — the literal second option — was labelled
@@ -108,6 +103,13 @@ export function mentionsOfferedSlot(text: string, options: string[]): boolean {
   return false;
 }
 
+/**
+ * defaultMeetingSlots() picks the next two actual weekdays, so which one is
+ * "Monday" vs "Tuesday" shifts by the day the call happens. Match against
+ * what was actually offered instead of assuming a fixed first=Monday,
+ * second=Tuesday mapping — that assumption silently booked the wrong day
+ * whenever the real slots landed on any other weekday pair.
+ */
 export function pickSlot(text: string, options: string[]): string {
   const lower = text.toLowerCase();
   const saidHours = hoursIn(lower);
@@ -167,13 +169,7 @@ function handleClose(session: Session, intent: Intent, text: string): string {
 
   if (intent === "give_availability" || intent === "decline_slots") {
     session.complianceFlags.push("availability_captured");
-    return endWith(
-      session,
-      "WRAP_UP",
-      lang === "hi-IN-hinglish"
-        ? "Theek hai, calendar link bhej dunga. Aap jab free ho tab choose kar lena."
-        : "All good — I'll send a calendar link and you can pick a time.",
-    );
+    return endWith(session, "WRAP_UP", availabilityCapturedLine(lang));
   }
 
   if (intent === "call_later") return handleObjection(session, "call_later");
@@ -211,13 +207,7 @@ export function replyTo(session: Session, prospectText: string, intent?: Intent)
   }
 
   if (resolved === "wrong_person") {
-    return endWith(
-      session,
-      "WRAP_UP",
-      lang === "hi-IN-hinglish"
-        ? "Galat number lag raha hai. Main drop karta hoon."
-        : "Looks like I have the wrong person. I'll drop off.",
-    );
+    return endWith(session, "WRAP_UP", wrongPersonLine(lang));
   }
 
   switch (session.state) {
@@ -278,36 +268,12 @@ export function scriptQuestionFor(session: Session): string {
   return currentScriptQuestion(session.lead, session.lead.preferred_language, session.state);
 }
 
-/** Knowledge reply that also moves the script forward (used after "okay"). */
-export function advanceWithReply(
-  session: Session,
-  prospectText: string,
-  agentText: string,
-  next: CallState,
-  extras: { via?: TranscriptTurn["via"]; sources?: KnowledgeSource[] } = {},
-): string {
-  if (session.ended) return session.turns.at(-1)?.text ?? "";
-  turn(session, "prospect", prospectText);
-  session.silenceNudges = 0;
-  session.state = next;
-  const entry: TranscriptTurn = {
-    role: "agent",
-    text: agentText,
-    state: next,
-    at: new Date().toISOString(),
-    via: extras.via ?? "rag",
-    sources: extras.sources,
-  };
-  session.turns.push(entry);
-  return agentText;
-}
-
-/** Knowledge / RAG reply: keep the current script beat, do not advance state. */
+/** A side reply (FAQ answer, repeat): keep the current script beat, do not advance state. */
 export function recordSideReply(
   session: Session,
   prospectText: string,
   agentText: string,
-  extras: { via?: TranscriptTurn["via"]; sources?: KnowledgeSource[] } = {},
+  extras: { via?: TranscriptTurn["via"] } = {},
 ): string {
   if (session.ended) return session.turns.at(-1)?.text ?? "";
   turn(session, "prospect", prospectText);
@@ -317,8 +283,7 @@ export function recordSideReply(
     text: agentText,
     state: session.state,
     at: new Date().toISOString(),
-    via: extras.via ?? "rag",
-    sources: extras.sources,
+    via: extras.via ?? "faq",
   };
   session.turns.push(entry);
   return agentText;

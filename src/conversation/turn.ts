@@ -1,10 +1,8 @@
-import { randomUUID } from "node:crypto";
-import { classifyRoute } from "./router.js";
-import { saveQuestion } from "../leads/questions.js";
+import { classifyRoute, wantsFaq } from "./router.js";
 import { classifyIntent, naturalizeReply, steerBackToScript } from "../llm/groq.js";
-import { answerCompanyQuestion } from "../rag/service.js";
+import { answerFromScript, type FaqMatch } from "../script/faq.js";
 import { isOffScript } from "../script/intent.js";
-import { defaultMeetingSlots } from "../script/lines.js";
+import { defaultMeetingSlots, faqNoMatchLine } from "../script/lines.js";
 import {
   mentionsOfferedSlot,
   offerBooking,
@@ -12,7 +10,7 @@ import {
   replaceLastAgentLine,
   replyTo,
 } from "../script/stateMachine.js";
-import type { ConversationRoute, Intent, KnowledgeSource, Session } from "../types.js";
+import type { ConversationRoute, Intent, Session } from "../types.js";
 
 // "Sorry, what?" / "dobara bolo" / "what did you just say" — re-say the last
 // line instead of classifying it as a new intent. A real call had the caller
@@ -22,52 +20,31 @@ const REPEAT_RE =
 
 export type TurnResult = {
   agent: string;
-  via: "script" | "groq" | "steer" | "rag";
+  via: "script" | "groq" | "steer" | "faq";
   intent: Intent;
   route: ConversationRoute;
-  sources: KnowledgeSource[];
+  /** Which FAQ entry answered, when one did. */
+  faqId: string | null;
   ended: boolean;
 };
 
-async function speakKnowledge(
-  session: Session,
-  text: string,
-  rag: Awaited<ReturnType<typeof answerCompanyQuestion>>,
-  intent: Intent,
-): Promise<TurnResult> {
-  const agent = recordSideReply(session, text, rag.answer, {
-    via: "rag",
-    sources: rag.sources,
-  });
-  const saved = await saveQuestion({
-    id: randomUUID(),
-    callId: session.callId,
-    contactName: session.lead.contact_name,
-    question: text,
-    answer: rag.answer,
-    sources: rag.sources,
-    grounded: rag.grounded,
-  });
-  session.knowledgeQuestions.push(saved);
+/**
+ * Caller asked a question. Answer it from the script's FAQ, verbatim, without
+ * moving the call off its current beat — then the flow resumes. Not covered
+ * → say so and pivot to the demo. Never invent.
+ */
+function speakAnswer(session: Session, text: string, intent: Intent, match: FaqMatch | null): TurnResult {
+  const answer = match?.answer ?? faqNoMatchLine(session.lead.preferred_language);
+  const agent = recordSideReply(session, text, answer, { via: match ? "faq" : "script" });
+  session.questionsAsked.push({ question: text, faqId: match?.id ?? null, at: new Date().toISOString() });
   return {
     agent,
-    via: "rag",
+    via: match ? "faq" : "script",
     intent,
     route: "knowledge",
-    sources: rag.sources,
+    faqId: match?.id ?? null,
     ended: false,
   };
-}
-
-function knowledgeQuery(session: Session, text: string): string {
-  // Guard against a stray short/ambiguous utterance landing on this route —
-  // search something useful instead of the literal one or two words.
-  if (text.trim().split(/\s+/).length <= 2) {
-    return session.state === "OPENING"
-      ? "What does the company do, and who does it help? Answer in one or two short spoken sentences."
-      : "What products, plans, or policies should a caller know? Answer in one or two short spoken sentences.";
-  }
-  return text;
 }
 
 /** Concrete facts a natural rephrase must not lose — a booked slot, or the slots on offer. */
@@ -82,7 +59,7 @@ export async function handleTurn(session: Session, text: string): Promise<TurnRe
   const lastAgent = [...session.turns].reverse().find((t) => t.role === "agent");
   if (!session.ended && lastAgent && REPEAT_RE.test(text) && text.trim().split(/\s+/).length <= 10) {
     const again = recordSideReply(session, text, lastAgent.text, { via: "script" });
-    return { agent: again, via: "script", intent: "unclear", route: "conversation", sources: [], ended: false };
+    return { agent: again, via: "script", intent: "unclear", route: "conversation", faqId: null, ended: false };
   }
 
   let intent = await classifyIntent(session, text);
@@ -94,15 +71,17 @@ export async function handleTurn(session: Session, text: string): Promise<TurnRe
     intent = "accept_slot";
   }
 
-  const route = classifyRoute(intent, text, session.state);
-
-  if (route === "knowledge" && !session.ended) {
-    const rag = await answerCompanyQuestion({
-      question: knowledgeQuery(session, text),
-      language: session.lead.preferred_language,
-    });
-    return speakKnowledge(session, text, rag, intent);
+  // A question gets tried against the script FAQ first, whatever label the
+  // LLM gave it. A hit is spoken verbatim and the call stays on its beat.
+  // No hit: an explicit company question gets the honest "don't know →
+  // demo" pivot; anything else falls through to the normal flow, so a
+  // "hello, are you there?" is handled as off-script, not as a lookup.
+  if (!session.ended && wantsFaq(intent, text)) {
+    const match = await answerFromScript(text, session.lead, session.lead.preferred_language);
+    if (match || intent === "company_knowledge") return speakAnswer(session, text, intent, match);
   }
+
+  const route = classifyRoute(intent, text, session.state);
 
   if (route === "booking" && !session.ended && session.state !== "CLOSE" && session.state !== "WRAP_UP") {
     return {
@@ -110,7 +89,7 @@ export async function handleTurn(session: Session, text: string): Promise<TurnRe
       via: "script",
       intent,
       route,
-      sources: [],
+      faqId: null,
       ended: session.ended,
     };
   }
@@ -125,7 +104,7 @@ export async function handleTurn(session: Session, text: string): Promise<TurnRe
       const natural = await steerBackToScript(session, text, agent);
       if (natural && natural !== agent) {
         replaceLastAgentLine(session, natural);
-        return { agent: natural, via: "steer", intent, route, sources: [], ended: session.ended };
+        return { agent: natural, via: "steer", intent, route, faqId: null, ended: session.ended };
       }
     } else {
       // On-script: the facts are locked (see factsToPreserve), but let Groq
@@ -138,7 +117,7 @@ export async function handleTurn(session: Session, text: string): Promise<TurnRe
       const natural = await naturalizeReply(session, text, agent, factsToPreserve(session));
       if (natural && natural !== agent) {
         replaceLastAgentLine(session, natural);
-        return { agent: natural, via: "steer", intent, route, sources: [], ended: session.ended };
+        return { agent: natural, via: "steer", intent, route, faqId: null, ended: session.ended };
       }
     }
   }
@@ -148,7 +127,7 @@ export async function handleTurn(session: Session, text: string): Promise<TurnRe
     via: "script",
     intent,
     route,
-    sources: [],
+    faqId: null,
     ended: session.ended,
   };
 }

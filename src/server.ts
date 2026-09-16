@@ -8,12 +8,10 @@ import { scoreCall } from "./dispo/scorer.js";
 import { loadCalls, loadLeads, saveCall } from "./leads/store.js";
 import { planDials, dialLead } from "./orchestrator/dialer.js";
 import { handleTurn } from "./conversation/turn.js";
-import { pingMongo, mongoStatus } from "./db/mongo.js";
-import { embeddingStatus } from "./embeddings/service.js";
 import { groqEnabled, groqStatus } from "./llm/groq.js";
 import { dashboardRouter } from "./routes/dashboard.js";
-import { knowledgeRouter } from "./routes/knowledge.js";
 import { thinkingFillers } from "./script/lines.js";
+import { getScript } from "./script/scriptFile.js";
 import { createSession, endCallManually, nudge, startCall } from "./script/stateMachine.js";
 import { LeadSchema, PreferredLanguageSchema, type Session } from "./types.js";
 import { prewarmSpeech, synthesizeSpeech, ttsProviderFor } from "./tts.js";
@@ -24,21 +22,17 @@ const sessions = new Map<string, Session>();
 const app = express();
 app.use(express.json({ limit: "2mb" }));
 app.use(express.static(path.join(config.root, "public")));
-app.use(knowledgeRouter);
 app.use(dashboardRouter);
 
-app.get("/api/health", async (_req, res) => {
-  const mongo = mongoStatus();
-  if (mongo.configured) await pingMongo();
+app.get("/api/health", (_req, res) => {
   res.json({
     ok: true,
     product: "Lipi.ai one-company voice agent",
-    approach: "existing script + RAG for company knowledge",
+    approach: "one static script file — every line and FAQ answer comes from scripts/call-script.yaml",
+    script: { path: config.scriptPath, faqEntries: getScript().faq.length },
     company: { id: config.companyId, name: config.companyName },
     voiceRouting: describeRouting(),
     groq: groqStatus(),
-    mongo: mongoStatus(),
-    embeddings: embeddingStatus(),
     tts: {
       "en-US": ttsProviderFor("en-US"),
       "en-IN": ttsProviderFor("en-IN"),
@@ -140,7 +134,7 @@ app.post("/api/simulate/reply", async (req, res) => {
     via: turn.via,
     intent: turn.intent,
     route: turn.route,
-    sources: turn.sources,
+    faqId: turn.faqId,
   });
 });
 

@@ -11,7 +11,7 @@
     <div>
       <p class="eyebrow">Lipi.ai · One-company voice agent</p>
       <h1>Company voice desk</h1>
-      <p class="sub">The existing voice agent still runs the call. Company PDFs answer knowledge questions. Booking stays on the script.</p>
+      <p class="sub">One script file runs the whole call — every line, every objection, every FAQ answer. Groq only understands what the caller meant.</p>
     </div>
     <p class="mode">Browser voice now · Phone via Vapi when keys are set</p>
   </header>
@@ -23,13 +23,13 @@
     <button type="button" class="tab" data-view="leads">Leads</button>
     <button type="button" class="tab" data-view="bookings">Bookings</button>
     <button type="button" class="tab" data-view="questions">Questions</button>
-    <button type="button" class="tab" data-view="knowledge">Knowledge</button>
+    <button type="button" class="tab" data-view="script">Script</button>
   </nav>
 
   <main id="view-live" class="stage view">
     <aside class="dialer">
       <h2>Who to call</h2>
-      <p class="hint">Same company. Three voices. They answer from your uploaded PDFs.</p>
+      <p class="hint">Same script, three stories — a hospital, a grocery app, a dental clinic.</p>
       <div id="leads" class="list"></div>
     </aside>
 
@@ -103,25 +103,17 @@
 
   <main id="view-questions" class="board view hidden">
     <section class="panel">
-      <h2>Company questions</h2>
-      <p class="hint">RAG answers from uploaded PDFs, with sources.</p>
+      <h2>Questions callers asked</h2>
+      <p class="hint">Answered from the script's FAQ. Anything marked <strong>no match</strong> is a question to add to <code>scripts/call-script.yaml</code>.</p>
       <div id="question-list" class="list"></div>
     </section>
   </main>
 
-  <main id="view-knowledge" class="board view hidden">
+  <main id="view-script" class="board view hidden">
     <section class="panel">
-      <h2>Company knowledge PDFs</h2>
-      <p class="hint">MongoDB is only the storage. The agent answers from PDFs you upload here — company profile, products, pricing, FAQ.</p>
-      <form id="knowledge-form" class="upload">
-        <label class="file-btn" for="pdf-input">Choose PDFs</label>
-        <input id="pdf-input" type="file" accept="application/pdf" multiple hidden />
-        <span id="file-label" class="hint">No files selected</span>
-        <button type="submit">Upload and ingest</button>
-        <button id="reingest-btn" type="button">Re-ingest folder</button>
-      </form>
-      <p id="knowledge-status" class="hint"></p>
-      <div id="document-list" class="list"></div>
+      <h2>The script</h2>
+      <p class="hint">Every line the agent can say, read from <code id="script-path">scripts/call-script.yaml</code>. Edit that file and restart to change the call.</p>
+      <div id="script-view" class="script-view"></div>
     </section>
   </main>
 

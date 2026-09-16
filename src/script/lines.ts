@@ -1,12 +1,14 @@
+/**
+ * Every spoken line, read from scripts/call-script.yaml. Nothing here is
+ * hardcoded text — these functions pick the right beat for the moment and
+ * fill in the caller's details. Edit the YAML to change what the agent says.
+ */
 import type { Lead, PreferredLanguage } from "../types.js";
 import { config } from "../config.js";
+import { getScript, render, scriptLang, type ScriptLang, type Vars } from "./scriptFile.js";
 
 export function firstName(lead: Lead): string {
   return lead.contact_name.trim().split(/\s+/)[0] ?? lead.contact_name;
-}
-
-function hi(language: PreferredLanguage): boolean {
-  return language === "hi-IN-hinglish";
 }
 
 function founder(): string {
@@ -17,8 +19,12 @@ function company(): string {
   return config.companyName || "our company";
 }
 
+// ---------------------------------------------------------------------------
+// Topic: which story this lead gets
+// ---------------------------------------------------------------------------
+
 export type Topic = {
-  key: "hospital" | "order" | "appointment" | "general";
+  key: string;
   /** Short noun phrase for splicing into a sentence, e.g. "patient calls". */
   noun: string;
   nounHi: string;
@@ -30,52 +36,55 @@ export type Topic = {
   consequenceHi: string;
 };
 
-/** Maps a lead's industry/description to the concrete problem this call is about. */
+/** Maps a lead's industry/description to the topic in the script whose `match` words appear. */
 export function topicFor(lead: Lead): Topic {
   const blob = `${lead.industry} ${lead.company_description} ${lead.need_for_bot}`.toLowerCase();
-  if (/hospital|patient/.test(blob)) {
-    return {
-      key: "hospital",
-      noun: "patient calls",
-      nounHi: "patient calls",
-      full: "after-hours patient calls that go unanswered",
-      fullHi: "raat ke patient calls jo miss ho jaate hain",
-      consequence: "a patient who needed help and got a dead line",
-      consequenceHi: "ek patient ko urgent madad chahiye thi aur line hi nahi lagi",
-    };
+  const { topics } = getScript();
+  let key = "general";
+  for (const [name, topic] of Object.entries(topics)) {
+    if (name === "general") continue;
+    if (topic.match.some((word) => word && blob.includes(word.toLowerCase()))) {
+      key = name;
+      break;
+    }
   }
-  if (/grocery|order|delivery/.test(blob)) {
-    return {
-      key: "order",
-      noun: "order-status calls",
-      nounHi: "order-status calls",
-      full: "\"where is my order\" calls flooding your line",
-      fullHi: "\"order kahan hai\" wale calls jo line block karte hain",
-      consequence: "a frustrated customer who doesn't order again",
-      consequenceHi: "customer frustrate hoke dobara order hi nahi karta",
-    };
-  }
-  if (/dental|clinic|appointment/.test(blob)) {
-    return {
-      key: "appointment",
-      noun: "appointment calls",
-      nounHi: "appointment calls",
-      full: "appointment calls that never get through",
-      fullHi: "appointment ke calls jo connect hi nahi hote",
-      consequence: "a patient who just books the clinic down the street",
-      consequenceHi: "patient bagal wali clinic mein book kar leta hai",
-    };
-  }
+  const t = topics[key] ?? topics["general"]!;
   return {
-    key: "general",
-    noun: "missed calls",
-    nounHi: "missed calls",
-    full: "calls you're probably missing right now",
-    fullHi: "calls jo abhi miss ho rahe honge",
-    consequence: "a customer who just calls your competitor next",
-    consequenceHi: "customer seedha competitor ko call kar leta hai",
+    key,
+    noun: t.en.calls,
+    nounHi: t.hi.calls,
+    full: t.en.problem,
+    fullHi: t.hi.problem,
+    consequence: t.en.consequence,
+    consequenceHi: t.hi.consequence,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Placeholder values for a given call
+// ---------------------------------------------------------------------------
+
+function baseVars(lead: Lead, language: PreferredLanguage): Vars {
+  const t = topicFor(lead);
+  const l = scriptLang(language);
+  return {
+    name: firstName(lead),
+    company: lead.company_name,
+    ourCompany: company(),
+    founder: founder(),
+    calls: l === "hi" ? t.nounHi : t.noun,
+    problem: l === "hi" ? t.fullHi : t.full,
+    consequence: l === "hi" ? t.consequenceHi : t.consequence,
+  };
+}
+
+function say(line: { en: string; hi: string }, l: ScriptLang, vars: Vars): string {
+  return render(line[l], vars);
+}
+
+// ---------------------------------------------------------------------------
+// Slots
+// ---------------------------------------------------------------------------
 
 export function defaultMeetingSlots(language: PreferredLanguage = "en-IN"): string[] {
   if (config.meetingSlots.length >= 2) return config.meetingSlots;
@@ -88,7 +97,7 @@ export function defaultMeetingSlots(language: PreferredLanguage = "en-IN"): stri
     if (day === 0 || day === 6) continue;
     const hour = hours[out.length] ?? 11;
     const weekday = cursor.toLocaleDateString("en-IN", { weekday: "long" });
-    if (hi(language)) {
+    if (scriptLang(language) === "hi") {
       out.push(`${weekday} ${hour === 11 ? "11 baje" : "3 baje"}`);
     } else {
       out.push(`${weekday} at ${hour === 11 ? "11" : "3"}`);
@@ -97,157 +106,116 @@ export function defaultMeetingSlots(language: PreferredLanguage = "en-IN"): stri
   return out;
 }
 
-/**
- * Short backchannels the agent says the instant the caller stops talking,
- * while intent classification and the real reply are still being generated.
- * A real person does this ("right…", "got it…") — and it hides the 2-4s the
- * LLM + TTS need, which is what actually makes a voice agent feel slow.
- *
- * Kept deliberately tiny and fixed: they pre-synthesize into the TTS cache at
- * startup, so they play in ~200ms instead of a fresh network round trip.
- */
+export function slotPair(language: PreferredLanguage, slots: string[]): string {
+  const a = slots[0] ?? "Monday 11";
+  const b = slots[1] ?? "Tuesday 3";
+  return scriptLang(language) === "hi" ? `${a} ya ${b}` : `${a} or ${b}`;
+}
+
+// ---------------------------------------------------------------------------
+// The call, beat by beat
+// ---------------------------------------------------------------------------
+
+/** Short backchannels spoken the instant the caller stops talking, while the real reply is generated. */
 export function thinkingFillers(language: PreferredLanguage): string[] {
-  if (hi(language)) {
-    return ["Haan, samajh gaya.", "Achha, theek hai.", "Hmm, bilkul.", "Ji, samajh raha hoon."];
-  }
-  if (language === "en-IN") {
-    return ["Right, got it.", "Okay, understood.", "Hmm, sure.", "Yeah, I hear you."];
-  }
-  return ["Right, got it.", "Okay, sure.", "Mm-hmm.", "Yeah, I hear you."];
+  const f = getScript().steering.fillers;
+  if (language === "hi-IN-hinglish") return f.hi;
+  if (language === "en-IN") return f["en-IN"];
+  return f["en-US"];
 }
 
 /** Outbound cold-open: say who's calling and why, then ask for a minute. Nothing else. */
 export function openingLine(lead: Lead, language: PreferredLanguage): string {
-  const name = firstName(lead);
-  if (hi(language)) {
-    return `Namaste ${name}, main ${company()} ka AI assistant hoon, ${founder()} ki taraf se call kar raha hoon. Bilkul chhota sa call hai — ek minute milega?`;
-  }
-  return `Hi ${name}, this is ${company()}'s AI assistant, calling on behalf of ${founder()}. It'll only take a minute — is now an okay time?`;
+  return say(getScript().flow.opening, scriptLang(language), baseVars(lead, language));
 }
 
 /** The discovery question this call is actually built around. Lead-specific, not a menu. */
 export function problemQuestion(lead: Lead, language: PreferredLanguage): string {
-  const t = topicFor(lead);
-  if (hi(language)) {
-    return `${lead.company_name} mein abhi ${t.fullHi} — yeh kaise handle karte hain?`;
-  }
-  return `How is ${lead.company_name} handling ${t.full} today?`;
+  return say(getScript().flow.discovery_question, scriptLang(language), baseVars(lead, language));
 }
 
 /** Company intro beat: thank them for the minute, ask the one discovery question. */
 export function contextBridge(lead: Lead, language: PreferredLanguage): string {
-  if (hi(language)) {
-    return `Shukriya. Ek quick sawal — ${problemQuestion(lead, language)}`;
-  }
-  return `Thanks. Quick question — ${problemQuestion(lead, language)}`;
+  const vars = { ...baseVars(lead, language), question: problemQuestion(lead, language) };
+  return say(getScript().flow.discovery, scriptLang(language), vars);
 }
 
 /** Acknowledge, sell the outcome (not just the feature), ask for a demo. Then wait. */
 export function pitchLine(lead: Lead, language: PreferredLanguage): string {
-  const t = topicFor(lead);
-  if (hi(language)) {
-    return `Samajh gaya. Har baar jo call miss hoti hai, uska matlab ${t.consequenceHi}. ${company()} ek AI voice agent deta hai jo ${t.nounHi} turant pick karta hai, chaahe koi available ho ya na ho. Ek chhota demo dikhaun?`;
-  }
-  return `Got it. Every one of those calls that goes unanswered means ${t.consequence}. ${company()} gives you an AI voice agent that picks up ${t.noun} the moment they come in — want a quick demo?`;
+  return say(getScript().flow.pitch, scriptLang(language), baseVars(lead, language));
 }
 
-export function slotPair(language: PreferredLanguage, slots: string[]): string {
-  const a = slots[0] ?? "Monday 11";
-  const b = slots[1] ?? "Tuesday 3";
-  return hi(language) ? `${a} ya ${b}` : `${a} or ${b}`;
-}
-
-/**
- * Say what the slots are FOR. A real caller answered "ek kis cheez ki timing
- * hai?" (timing for what?) — the bare "Tuesday 11 ya Wednesday 3" landed with
- * no context, mid-call.
- */
+/** Two concrete times, and what they're for. */
 export function closeLine(language: PreferredLanguage, slots: string[]): string {
-  const pair = slotPair(language, slots);
-  if (hi(language)) {
-    return `Bilkul. ${founder()} ke saath 15 minute ka demo rakh lete hain — ${pair}, aapke liye kya better rahega?`;
-  }
-  return `Sure thing — let's set up a 15-minute demo with ${founder()}. I've got ${pair}. Which works better for you?`;
+  return say(getScript().flow.close, scriptLang(language), {
+    founder: founder(),
+    slots: slotPair(language, slots),
+  });
 }
 
 export function confirmSlotLine(language: PreferredLanguage, slot: string): string {
-  if (hi(language)) {
-    return `Toh demo ${slot} lock kar doon?`;
-  }
-  return `So shall I lock the demo for ${slot}?`;
+  return say(getScript().flow.confirm_slot, scriptLang(language), { slot });
 }
 
-export function wrapUpLine(
-  lead: Lead,
-  language: PreferredLanguage,
-  booked: string | null,
-): string {
-  const name = firstName(lead);
-  const link = config.calBookingUrl
-    ? hi(language)
-      ? " Main confirmation link bhej deta hoon."
-      : " I'll send the confirmation link."
-    : "";
-  if (hi(language)) {
-    return booked
-      ? `Perfect, ${booked} rakh dete hain. ${founder()} aapko demo de denge.${link} Thank you, ${name}.`
-      : `Theek hai, koi problem nahi. Thank you, ${name}.`;
-  }
-  return booked
-    ? `Perfect, I'll lock ${booked}. ${founder()} will run the demo.${link} Thank you, ${name}.`
-    : `All good, no problem. Thank you, ${name}.`;
+export function wrapUpLine(lead: Lead, language: PreferredLanguage, booked: string | null): string {
+  const s = getScript().flow;
+  const vars = { ...baseVars(lead, language), slot: booked ?? "" };
+  return say(booked ? s.wrap_up_booked : s.wrap_up_not_booked, scriptLang(language), vars);
 }
+
+export function availabilityCapturedLine(language: PreferredLanguage): string {
+  return say(getScript().flow.availability_captured, scriptLang(language), {});
+}
+
+// ---------------------------------------------------------------------------
+// Exits — spoken exactly as written, never rephrased
+// ---------------------------------------------------------------------------
 
 export function noTimeHangupLine(lead: Lead, language: PreferredLanguage): string {
-  const name = firstName(lead);
-  if (hi(language)) {
-    return `Bilkul, koi problem nahi ${name}. Abhi time nahi lunga. Thank you.`;
-  }
-  return `Of course, no problem ${name}. I won't take your time now. Thank you.`;
+  return say(getScript().exits.no_time, scriptLang(language), baseVars(lead, language));
 }
 
 export function fallbackLine(language: PreferredLanguage): string {
-  if (hi(language)) {
-    return `Understood. Main aapka time waste nahi karunga. Thank you.`;
-  }
-  return `Understood. I won't waste your time. Thank you.`;
+  return say(getScript().exits.hostile, scriptLang(language), {});
 }
 
 export function dncLine(language: PreferredLanguage): string {
-  if (hi(language)) {
-    return `Absolutely, understood. Main dobara call nahi karunga. Have a good day.`;
-  }
-  return `Absolutely, understood. I won't call again. Have a good day.`;
+  return say(getScript().exits.do_not_call, scriptLang(language), {});
 }
 
-export function nudgeLine(lead: Lead, language: PreferredLanguage): string {
-  const name = firstName(lead);
-  if (hi(language)) {
-    return `${name}, kya aap mujhe sun pa rahe hain?`;
-  }
-  return `${name}, can you still hear me?`;
+export function wrongPersonLine(language: PreferredLanguage): string {
+  return say(getScript().exits.wrong_person, scriptLang(language), {});
 }
 
 export function silenceHangupLine(language: PreferredLanguage): string {
-  if (hi(language)) {
-    return `Lagta hai connection issue hai. Main call yahin end karta hoon. Thank you.`;
-  }
-  return `Looks like a connection issue. I'll end the call here. Thank you.`;
+  return say(getScript().exits.silence, scriptLang(language), {});
 }
 
+// ---------------------------------------------------------------------------
+// Steering
+// ---------------------------------------------------------------------------
+
+export function nudgeLine(lead: Lead, language: PreferredLanguage): string {
+  return say(getScript().steering.nudge, scriptLang(language), baseVars(lead, language));
+}
+
+/** The question we're steering back to, for the beat the call is on. */
 export function currentScriptQuestion(lead: Lead, language: PreferredLanguage, state: string): string {
-  if (state === "OPENING") {
-    return hi(language) ? "Ek minute milega?" : "Is now an okay time?";
-  }
+  const s = getScript();
+  const l = scriptLang(language);
+  if (state === "OPENING") return say(s.steering.anchor.opening, l, {});
   if (state === "CONTEXT_BRIDGE") return problemQuestion(lead, language);
-  if (state === "PITCH" || state === "OBJECTION_HANDLING") {
-    return hi(language) ? "Ek chhota demo dikhaun?" : "Want a quick demo?";
-  }
+  if (state === "PITCH" || state === "OBJECTION_HANDLING") return say(s.flow.pitch_question, l, {});
   if (state === "CLOSE") return closeLine(language, defaultMeetingSlots(language));
-  return hi(language) ? "Haan, boliye." : "Yeah, go ahead.";
+  return say(s.steering.anchor.default, l, {});
 }
 
 export function holdOnScriptLine(lead: Lead, language: PreferredLanguage, state: string): string {
   const question = currentScriptQuestion(lead, language, state);
-  return hi(language) ? `Samajh gaya. ${question}` : `Got it. ${question}`;
+  return say(getScript().steering.hold_on_script, scriptLang(language), { question });
+}
+
+/** A question the FAQ doesn't cover: say so, don't guess, pivot to the demo. */
+export function faqNoMatchLine(language: PreferredLanguage): string {
+  return say(getScript().steering.faq_no_match, scriptLang(language), { founder: founder() });
 }

@@ -87,44 +87,20 @@ h1 { margin: 0; font-size: 28px; font-weight: 650; }
   border-radius: 20px;
   padding: 16px;
 }
-.upload {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 12px 0;
-}
-.upload input { color: var(--muted); }
-.file-btn {
-  border: 1px solid var(--line);
-  background: #203044;
-  color: var(--text);
-  border-radius: 999px;
-  padding: 10px 16px;
-  font-weight: 650;
-  cursor: pointer;
-}
-.upload button, .danger {
-  border: 0;
-  border-radius: 999px;
-  padding: 10px 16px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.upload button { background: var(--green); color: #062113; }
-.danger { background: #3a1520; color: var(--red); }
 .table-wrap { overflow: auto; margin-top: 12px; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); color: #c9d6e2; }
 th { color: var(--muted); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
-.sources { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.source-chip {
-  font-size: 11px;
-  color: #9fd6ff;
-  background: #10202c;
-  border: 1px solid #2a4a5e;
-  border-radius: 999px;
-  padding: 3px 8px;
-}
+
+/* Script tab — the YAML rendered as a readable story */
+.script-view { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.script-section { border-left: 2px solid var(--line); padding-left: 12px; margin: 6px 0; }
+.script-section h3 { margin: 6px 0 4px; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--green); }
+.script-beat { padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.script-beat strong { display: block; font-size: 12px; color: #9fd6ff; margin-bottom: 2px; }
+.script-beat .meta { display: block; font-size: 12px; color: var(--muted); }
+.script-beat .t-line b { display: inline-block; width: 22px; font-size: 10px; color: var(--muted); text-transform: uppercase; }
+code { font-size: 12px; background: #10202c; border-radius: 4px; padding: 1px 5px; color: #9fd6ff; }
 .via-badge.rag { color: #9fd6ff; }
 
 .stage {

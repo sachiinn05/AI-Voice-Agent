@@ -48,25 +48,13 @@ export const NextActionSchema = z.enum([
 ]);
 export type NextAction = z.infer<typeof NextActionSchema>;
 
-export const KnowledgeSourceSchema = z.object({
-  fileName: z.string(),
-  pageNumber: z.number().optional(),
-  chunkIndex: z.number().optional(),
-  relevanceScore: z.number(),
-});
-export type KnowledgeSource = z.infer<typeof KnowledgeSourceSchema>;
-
-export const KnowledgeQuestionSchema = z.object({
-  id: z.string(),
-  callId: z.string().optional(),
-  contactName: z.string().optional(),
+/** A question the caller asked mid-call, and which script FAQ entry (if any) answered it. */
+export const QuestionAskedSchema = z.object({
   question: z.string(),
-  answer: z.string(),
-  sources: z.array(KnowledgeSourceSchema),
-  grounded: z.boolean(),
+  faqId: z.string().nullable(),
   at: z.string(),
 });
-export type KnowledgeQuestion = z.infer<typeof KnowledgeQuestionSchema>;
+export type QuestionAsked = z.infer<typeof QuestionAskedSchema>;
 
 /** Doc 9 output schema — identical shape to collections dispo, different vocabulary. */
 export const CallResultSchema = z.object({
@@ -92,7 +80,7 @@ export const CallResultSchema = z.object({
   compliance_flags: z.array(z.string()),
   next_action: NextActionSchema,
   lead: LeadSchema.optional(),
-  knowledge_questions: z.array(KnowledgeQuestionSchema).optional(),
+  questions_asked: z.array(QuestionAskedSchema).optional(),
 });
 export type CallResult = z.infer<typeof CallResultSchema>;
 
@@ -138,8 +126,7 @@ export type TranscriptTurn = {
   text: string;
   state: CallState;
   at: string;
-  via?: "script" | "groq" | "steer" | "rag";
-  sources?: KnowledgeSource[];
+  via?: "script" | "groq" | "steer" | "faq";
 };
 
 export type Session = {
@@ -153,7 +140,7 @@ export type Session = {
   startedAt: number;
   ended: boolean;
   silenceNudges: number;
-  knowledgeQuestions: KnowledgeQuestion[];
+  questionsAsked: QuestionAsked[];
 };
 
 export type ConversationRoute = "knowledge" | "booking" | "conversation";

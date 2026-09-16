@@ -41,11 +41,21 @@ Open [http://localhost:3000](http://localhost:3000). Pick **Ananya**, click **Ca
 
 ## How it works
 
-1. **State machine** — opening → problem → short pitch → objections → book. Not free-form chat.
-2. **Groq** — classifies what the caller meant. The app then speaks a controlled script line.
-3. **Browser voice** — you talk, it talks. Real phone numbers are optional later (Vapi).
-4. **Calendly** — booked meetings use `https://calendly.com/sachinsingh6386/30min`.
-5. **After the call** — transcript, score, next action.
+1. **One script file** — [`scripts/call-script.yaml`](scripts/call-script.yaml) is the only thing the agent can say: the five beats of the call, every objection comeback, and an FAQ. It's validated at startup, so a typo fails loudly instead of mid-call. Edit the YAML to change the call — no code.
+2. **State machine** — opening → discovery → pitch → close → wrap-up. Not free-form chat; every beat ends on a question and the agent waits.
+3. **Groq** — understands what the caller *meant* (intent), and can say a script line more naturally. It never decides *what* to say, and every fact stays locked to the file.
+4. **Questions mid-call** — matched against the script's FAQ (local embeddings + keywords, no database). A hit is spoken word-for-word and the call resumes its beat; no hit → "I won't guess, that's what the demo covers." Groq only breaks ties between close candidates.
+5. **Voice** — browser mic in; Sarvam Bulbul (native Hinglish) or free Edge neural voices out. Backchannels ("haan, samajh gaya…") are pre-recorded and play instantly while the real reply generates. Real phone calls via Vapi when keys are set.
+6. **After the call** — transcript, score, next action, and every question asked (with which FAQ entry answered it — or that none did, which is the list to grow the script from).
+
+## Edit the script
+
+Everything the agent says is in [`scripts/call-script.yaml`](scripts/call-script.yaml), written top to bottom like the call itself. Placeholders like `{name}`, `{company}`, `{calls}` fill in per lead; `topics:` maps a lead's industry to the story it hears. Add a question callers keep asking to `faq:` with a few `ask:` phrasings and it starts working on restart.
+
+```bash
+npm test          # 88 tests, including one that renders every line in every language
+npm run voices    # list the free Edge voices; -- --sample renders A/B clips
+```
 
 ## Resume bullet
 

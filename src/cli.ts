@@ -4,7 +4,6 @@ import { scoreCall } from "./dispo/scorer.js";
 import { loadLeads, saveCall } from "./leads/store.js";
 import { dialLead, planDials } from "./orchestrator/dialer.js";
 import { handleTurn } from "./conversation/turn.js";
-import { ingestKnowledgeFolder } from "./documents/ingest.js";
 import { createSession, startCall } from "./script/stateMachine.js";
 import { addToDnc } from "./compliance/dnc.js";
 
@@ -58,23 +57,10 @@ async function dial() {
   console.log(result);
 }
 
-async function ingest() {
-  const result = await ingestKnowledgeFolder();
-  console.log(`Ingested ${result.ingested.length} PDF(s).`);
-  for (const doc of result.ingested) {
-    console.log(`  ${doc.fileName} — ${doc.chunkCount} chunks`);
-  }
-  if (result.skipped.length) {
-    console.log("Skipped:");
-    for (const row of result.skipped) console.log(`  ${row}`);
-  }
-}
-
 const cmd = process.argv[2];
 if (cmd === "sim") await simulate();
 else if (cmd === "dial") await dial();
-else if (cmd === "ingest") await ingest();
 else {
-  console.log("Usage: npm run sim | npm run dial | npm run ingest | npm run dev");
+  console.log("Usage: npm run sim | npm run dial | npm run dev");
   process.exit(1);
 }

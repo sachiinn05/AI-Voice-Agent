@@ -118,7 +118,6 @@ function showResult(result, target = resultEl) {
     <p class="dispo">${escapeHtml(result.disposition)} · score ${escapeHtml(result.lead_score)}</p>
     <p class="hint">${escapeHtml(result.call_summary || "")}</p>
     ${meeting ? `<p class="hint">Booked: ${escapeHtml(meeting)}</p>` : ""}
-    ${sourceChips(result.knowledge_questions?.flatMap((q) => q.sources || []) || [])}
     <div class="transcript">${lines.join("") || `<p class="hint">No transcript saved for this call.</p>`}</div>
   `;
 }
@@ -197,24 +196,19 @@ async function ensureMic() {
   }
 }
 
-function showVia(via, sources) {
+function showVia(via, faqId) {
   if (!viaBadge) return;
-  if (via === "rag") {
-    const labels = (sources || [])
-      .slice(0, 2)
-      .map((s) => (s.pageNumber ? `${s.fileName} p.${s.pageNumber}` : s.fileName));
-    viaBadge.textContent = labels.length
-      ? `Company knowledge · ${labels.join(" · ")}`
-      : "Company knowledge · grounded in PDFs";
+  if (via === "faq") {
+    viaBadge.textContent = `Answered from the script FAQ · ${faqId || ""}`.trim();
     viaBadge.className = "via-badge rag";
   } else if (via === "steer") {
-    viaBadge.textContent = "Groq brought them back to the script";
+    viaBadge.textContent = "Script line, said Groq's way — same facts";
     viaBadge.className = "via-badge groq";
   } else if (via === "groq") {
     viaBadge.textContent = "Groq heard you — speaking the script";
     viaBadge.className = "via-badge groq";
   } else if (via === "script") {
-    viaBadge.textContent = "Script line — Groq did not change the words";
+    viaBadge.textContent = "Script line — word for word";
     viaBadge.className = "via-badge script";
   }
 }
@@ -248,11 +242,11 @@ async function playFiller() {
   }
 }
 
-async function playAgent(text, via, sources) {
+async function playAgent(text, via, faqId) {
   caption("Agent", text);
   setPhase("speaking");
-  showVia(via, sources);
-  if (via === "rag") statusEl.textContent = "Agent speaking · company knowledge";
+  showVia(via, faqId);
+  if (via === "faq") statusEl.textContent = "Agent speaking · script FAQ";
   if (via === "steer") statusEl.textContent = "Agent speaking · Groq steer";
   if (via === "groq") statusEl.textContent = "Agent speaking · Groq";
   if (via === "script") statusEl.textContent = "Agent speaking · script";
@@ -287,7 +281,7 @@ async function sendUtterance(text) {
 
   const res = await pending;
   const data = await res.json();
-  await playAgent(data.agent, data.via, data.sources);
+  await playAgent(data.agent, data.via, data.faqId);
   busy = false;
   if (data.ended) {
     await finish(data.result);
@@ -464,14 +458,6 @@ function paint() {
 }
 paint();
 
-function sourceChips(sources) {
-  if (!sources?.length) return "";
-  return `<div class="sources">${sources
-    .slice(0, 6)
-    .map((s) => `<span class="source-chip">${escapeHtml(s.fileName)}${s.pageNumber ? ` p.${s.pageNumber}` : ""}</span>`)
-    .join("")}</div>`;
-}
-
 function showView(name) {
   document.querySelectorAll(".view").forEach((el) => el.classList.toggle("hidden", el.id !== `view-${name}`));
   document.querySelectorAll(".tab").forEach((el) => el.classList.toggle("active", el.dataset.view === name));
@@ -480,7 +466,7 @@ function showView(name) {
   if (name === "leads") void loadLeadTable();
   if (name === "bookings") void loadBookings();
   if (name === "questions") void loadQuestions();
-  if (name === "knowledge") void loadKnowledge();
+  if (name === "script") void loadScriptView();
 }
 
 async function loadOverview() {
@@ -491,8 +477,8 @@ async function loadOverview() {
     ["Booked", stats.booked],
     ["Leads", stats.leads],
     ["Questions", stats.questions],
-    ["PDFs", stats.documents],
-    ["Chunks", stats.chunks],
+    ["No match", stats.unanswered],
+    ["FAQ entries", stats.faqEntries],
   ]
     .map(([label, value]) => `<div class="card"><strong>${escapeHtml(value ?? 0)}</strong><span>${label}</span></div>`)
     .join("");
@@ -558,74 +544,51 @@ async function loadQuestions() {
   document.getElementById("question-list").innerHTML = rows.length
     ? rows
         .map(
-          (q) => `<div class="lead"><strong>${escapeHtml(q.question)}</strong><span class="meta">${escapeHtml(q.answer)}</span>${sourceChips(q.sources)}${q.grounded ? "" : `<span class="meta">Not enough document coverage</span>`}</div>`,
+          (q) =>
+            `<div class="lead"><strong>${escapeHtml(q.question)}</strong><span class="meta">${escapeHtml(q.contactName || "")} · ${
+              q.faqId ? "FAQ: " + escapeHtml(q.faqId) : "<b>no match</b> — add it to scripts/call-script.yaml"
+            }</span></div>`,
         )
         .join("")
-    : `<p class="hint">No company questions asked yet.</p>`;
+    : `<p class="hint">No questions asked yet.</p>`;
 }
 
-async function loadKnowledge() {
-  const data = await (await fetch("/api/knowledge")).json();
-  const status = document.getElementById("knowledge-status");
-  const mongo = data.mongo?.configured ? (data.mongo.connected ? "Mongo connected" : "Mongo configured") : "Mongo not configured — set MONGODB_URI";
-  status.textContent = `${mongo} · embeddings: ${data.embeddings?.provider || "n/a"} · ${data.chunks || 0} chunks`;
-  const docs = data.documents || [];
-  document.getElementById("document-list").innerHTML = docs.length
-    ? docs
-        .map(
-          (doc) => `<div class="lead"><strong>${escapeHtml(doc.fileName)}</strong><span class="meta">${doc.pageCount} pages · ${doc.chunkCount} chunks · ${escapeHtml(doc.status)}</span><button class="danger" data-del="${escapeHtml(doc.documentId)}" data-file="${escapeHtml(doc.fileName)}" type="button">Remove</button></div>`,
-        )
-        .join("")
-    : `<p class="hint">Database is ready, but it has no company documents yet. Choose 3–4 PDFs, then click Upload and ingest.</p>`;
+function scriptLines(obj, depth = 0) {
+  return Object.entries(obj)
+    .map(([key, value]) => {
+      if (value && typeof value === "object" && "en" in value && "hi" in value) {
+        return `<div class="script-beat" style="margin-left:${depth * 14}px"><strong>${escapeHtml(key)}</strong><p class="t-line t-agent"><b>en</b>${escapeHtml(value.en)}</p><p class="t-line t-agent"><b>hi</b>${escapeHtml(value.hi)}</p></div>`;
+      }
+      if (Array.isArray(value)) {
+        return `<div class="script-beat" style="margin-left:${depth * 14}px"><strong>${escapeHtml(key)}</strong><span class="meta">${value.map((v) => escapeHtml(typeof v === "string" ? v : v.id || JSON.stringify(v))).join(" · ")}</span></div>`;
+      }
+      if (value && typeof value === "object") {
+        return `<div class="script-section" style="margin-left:${depth * 14}px"><h3>${escapeHtml(key)}</h3>${scriptLines(value, depth + 1)}</div>`;
+      }
+      return `<div class="script-beat" style="margin-left:${depth * 14}px"><strong>${escapeHtml(key)}</strong><span class="meta">${escapeHtml(String(value))}</span></div>`;
+    })
+    .join("");
 }
 
-document.getElementById("pdf-input")?.addEventListener("change", (event) => {
-  const input = event.target;
-  const label = document.getElementById("file-label");
-  if (!label) return;
-  const names = [...(input.files || [])].map((file) => file.name);
-  label.textContent = names.length ? names.join(", ") : "No files selected";
-});
+async function loadScriptView() {
+  const data = await (await fetch("/api/script")).json();
+  const pathEl = document.getElementById("script-path");
+  if (pathEl) pathEl.textContent = data.path;
+  const { faq, ...rest } = data.script;
+  const faqHtml = (faq || [])
+    .map(
+      (f) =>
+        `<div class="script-beat"><strong>${escapeHtml(f.id)}</strong><span class="meta">asked as: ${f.ask.map(escapeHtml).join(" / ")}</span><p class="t-line t-agent"><b>en</b>${escapeHtml(f.en)}</p><p class="t-line t-agent"><b>hi</b>${escapeHtml(f.hi)}</p></div>`,
+    )
+    .join("");
+  document.getElementById("script-view").innerHTML =
+    scriptLines(rest) + `<div class="script-section"><h3>faq (${(faq || []).length})</h3>${faqHtml}</div>`;
+}
 
 document.querySelector(".tabs")?.addEventListener("click", (event) => {
   const btn = event.target.closest("[data-view]");
   if (!btn || inCall) return;
   showView(btn.dataset.view);
-});
-
-document.getElementById("knowledge-form")?.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const input = document.getElementById("pdf-input");
-  if (!input?.files?.length) return;
-  const body = new FormData();
-  for (const file of input.files) body.append("files", file);
-  const status = document.getElementById("knowledge-status");
-  status.textContent = "Uploading and ingesting…";
-  const res = await fetch("/api/knowledge", { method: "POST", body });
-  const data = await res.json();
-  status.textContent = data.error || (data.errors?.length ? data.errors.join(" · ") : `Ingested ${data.ingested?.length || 0} PDF(s).`);
-  input.value = "";
-  const label = document.getElementById("file-label");
-  if (label) label.textContent = "No files selected";
-  await loadKnowledge();
-});
-
-document.getElementById("reingest-btn")?.addEventListener("click", async () => {
-  const status = document.getElementById("knowledge-status");
-  status.textContent = "Re-ingesting knowledge folder…";
-  const res = await fetch("/api/knowledge/ingest", { method: "POST" });
-  const data = await res.json();
-  status.textContent = data.error || `Ingested ${data.ingested?.length || 0}. ${data.skipped?.length ? data.skipped.join(" · ") : ""}`;
-  await loadKnowledge();
-});
-
-document.getElementById("document-list")?.addEventListener("click", async (event) => {
-  const btn = event.target.closest("[data-del]");
-  if (!btn) return;
-  await fetch(`/api/knowledge/${btn.dataset.del}?fileName=${encodeURIComponent(btn.dataset.file || "")}`, {
-    method: "DELETE",
-  });
-  await loadKnowledge();
 });
 
 loadLeads();

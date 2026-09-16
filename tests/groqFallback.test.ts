@@ -53,7 +53,9 @@ describe("groqChat model rotation on 429", () => {
     vi.resetModules();
   });
 
-  it("falls through to the next free model instead of throwing on 429", async () => {
+  // resetModules + a fresh dynamic import of the whole graph is the slow part,
+  // and it competes with the other files under the parallel runner.
+  it("falls through to the next free model instead of throwing on 429", { timeout: 20_000 }, async () => {
     const { groqChat } = await import("../src/llm/groq.js");
     const text = await groqChat([{ role: "user", content: "hi" }]);
 

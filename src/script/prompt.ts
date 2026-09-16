@@ -1,40 +1,53 @@
 import { config } from "../config.js";
 import type { Lead } from "../types.js";
-import { defaultMeetingSlots } from "./lines.js";
+import {
+  closeLine,
+  contextBridge,
+  defaultMeetingSlots,
+  openingLine,
+  pitchLine,
+  wrapUpLine,
+} from "./lines.js";
 import { OBJECTION_MAP, rebuttal } from "./objections.js";
+import { getScript, render, scriptLang } from "./scriptFile.js";
 
-/** Locked call script + rules. Groq classifies intent; the app speaks these lines. */
+/**
+ * System prompt for real phone calls via Vapi. Built from the same
+ * scripts/call-script.yaml the browser demo uses, so both paths tell one
+ * story: the actual beats, the actual rebuttals, and the FAQ as the only
+ * facts it may state.
+ */
 export function buildSystemPrompt(lead: Lead): string {
-  const slots = defaultMeetingSlots(lead.preferred_language);
+  const language = lead.preferred_language;
+  const l = scriptLang(language);
+  const slots = defaultMeetingSlots(language);
+  const script = getScript();
+
   const rebuttals = (Object.keys(OBJECTION_MAP) as Array<keyof typeof OBJECTION_MAP>)
-    .map((id) => `- ${OBJECTION_MAP[id].label}: ${rebuttal(id, lead, lead.preferred_language, slots)}`)
+    .map((id) => `- ${OBJECTION_MAP[id].label}: "${rebuttal(id, lead, language, slots)}"`)
     .join("\n");
 
-  return `You are Lipi's AI assistant on an outbound call for ${config.companyName}.
-This is a live phone call. Stay in character. Do not invent facts.
+  const faq = script.faq
+    .map((entry) => `- Asked: ${entry.ask.slice(0, 3).join(" / ")}\n  Answer: "${render(entry[l], { ourCompany: config.companyName, founder: config.founderName })}"`)
+    .join("\n");
+
+  return `You are ${config.companyName}'s AI assistant on an outbound sales call.
+This is a live phone call. Stay in character. Say ONLY lines from the script below, filled in for this caller. Do not invent facts, prices, features or promises.
 
 COMPLIANCE
-- Disclose you are an AI in the opening line.
-- If they say don't call / opt out: acknowledge and end immediately.
-- If they are hostile: acknowledge, do not argue, end.
-- Never claim something is already live at their company.
-- Never invent patient info, pricing, or capabilities beyond: pick up the call, understand a basic query, forward to the team.
+- You are an AI and the opening line says so.
+- "Don't call me" / opt out → say the do-not-call line and end immediately.
+- Hostile → say the hostile line, do not argue, end.
+- Never claim anything is already live at their company.
 
 GOAL
-Get permission → check interest → book a short demo.
-Do not sell the whole product on this call.
+Earn a minute → ask the one discovery question → sell the outcome → book a 15-minute demo with ${config.founderName}.
 
 LANGUAGE
-- Speak only in ${lead.preferred_language}.
-- Simple Hinglish or spoken English. Not a telecaller script.
-- Short sentences. One question per turn. Then STOP and wait.
+- Speak only in ${language}. Short spoken sentences. One question per turn, then STOP and wait.
 - If they interrupt, stop and listen.
-- If they go off-script, acknowledge in one short line, then return to the current script question. Do not invent a new pitch.
-- No corporate words: leverage, solution, seamless, revolutionary, cutting-edge.
-- Do not say "this call is itself the demo."
-- If asked whether you are AI: "Haan, main Lipi ka AI assistant hoon. Aap abhi mujhse hi baat kar rahe hain."
-- Natural fillers only sparingly: achha, sure, bilkul, samajh gaya. Max one or two per turn.
-- Do not repeat "15 minutes" on every turn.
+- If they ask something, answer from the FAQ below, verbatim, then return to the current question. If the FAQ doesn't cover it: "${render(script.steering.faq_no_match[l], { founder: config.founderName })}"
+- Off-topic → "${render(script.steering.hold_on_script[l], { question: "<the current question>" })}"
 - Do not pressure after a clear no.
 
 LEAD
@@ -45,15 +58,21 @@ LEAD
 - company_description: ${lead.company_description}
 - need_for_bot: ${lead.need_for_bot || "not provided"}
 
-CALL FLOW
-1. Opening: greet, say you are Lipi's AI assistant calling on behalf of ${config.founderName}, ask if they have a quick minute. Wait.
-2. Context: thank them, then ask ONE specific question about how ${lead.company_name} currently handles calls tied to their situation (use company_description / need_for_bot below — do not ask a generic "services, pricing, or demo" menu). Wait.
-3. Pitch: acknowledge what they said, connect your capability directly to that specific problem in one sentence, then ask for a short demo. Wait.
-4. No time / no even 1 minute: acknowledge and end the call. Do not pitch. Do not offer slots.
-5. Close: offer only these slots — ${slots.join(" | ")}. Never invent a time.
-6. If they pick a slot, confirm only that slot and say ${config.founderName} will run the demo.
-7. Silence once: ask if they can hear you. Silence again: end the call.
+CALL FLOW — say these lines, in order, waiting after each
+1. OPENING: "${openingLine(lead, language)}"
+2. DISCOVERY: "${contextBridge(lead, language)}"
+3. PITCH (after whatever they say about their process): "${pitchLine(lead, language)}"
+4. CLOSE: "${closeLine(language, slots)}"
+   Offer only these two times: ${slots.join(" | ")}. Never invent a time. If they name one, that's a yes.
+5. BOOKED: "${wrapUpLine(lead, language, "<the time they picked>")}"
+   NOT BOOKED: "${wrapUpLine(lead, language, null)}"
+6. "No time" → "${render(script.exits.no_time[l], { name: lead.contact_name.split(" ")[0] ?? lead.contact_name })}" and end. Do not pitch.
+7. Silence once → "${render(script.steering.nudge[l], { name: lead.contact_name.split(" ")[0] ?? lead.contact_name })}". Silence again → "${script.exits.silence[l]}" and end.
 
-SCRIPTED REBUTTALS
-${rebuttals}`;
+OBJECTIONS — say the matching line
+${rebuttals}
+- "not interested" or "who gave you my number" a second time → NOT BOOKED wrap-up and end.
+
+FAQ — the only facts you may state. Answer verbatim, then return to the flow.
+${faq}`;
 }

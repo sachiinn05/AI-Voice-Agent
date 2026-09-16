@@ -54,24 +54,10 @@ export const config = {
   anthropicModel: env("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"),
   groqApiKey: env("GROQ_API_KEY"),
   groqModel: env("GROQ_MODEL", "openai/gpt-oss-120b"),
+  /** The one file with every line the agent can say. See scripts/call-script.yaml. */
+  scriptPath: env("SCRIPT_PATH", "scripts/call-script.yaml"),
   leadsPath: path.resolve(root, env("LEADS_PATH", "data/leads.csv")),
   dncPath: path.resolve(root, env("DNC_PATH", "data/dnc.csv")),
   callsPath: path.resolve(root, env("CALLS_PATH", "data/calls.json")),
-  questionsPath: path.resolve(root, env("QUESTIONS_PATH", "data/questions.json")),
-  knowledgeDir: path.resolve(root, env("KNOWLEDGE_DIR", "knowledge")),
   companyId: env("COMPANY_ID", "main-company"),
-  mongoUri: env("MONGODB_URI"),
-  mongoDbName: env("MONGODB_DB", "lipi"),
-  vectorIndexName: env("VECTOR_INDEX_NAME", "knowledge_vector_index"),
-  embedding: {
-    provider: env("EMBEDDING_PROVIDER", "openai"),
-    apiKey: env("EMBEDDING_API_KEY") || env("OPENAI_API_KEY"),
-    model: env("EMBEDDING_MODEL", "text-embedding-3-small"),
-    baseUrl: env("EMBEDDING_BASE_URL", "https://api.openai.com/v1"),
-    dimensions: Number(env("EMBEDDING_DIMENSIONS", "0")) || 0,
-  },
-  rag: {
-    topK: Number(env("RAG_TOP_K", "5")) || 5,
-    minScore: Number(env("RAG_MIN_SCORE", "0")) || 0,
-  },
 };
