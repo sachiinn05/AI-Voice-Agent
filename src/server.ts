@@ -15,6 +15,7 @@ import { getScript } from "./script/scriptFile.js";
 import { createSession, endCallManually, nudge, startCall } from "./script/stateMachine.js";
 import { LeadSchema, PreferredLanguageSchema, type Session } from "./types.js";
 import { prewarmSpeech, synthesizeSpeech, ttsProviderFor } from "./tts.js";
+import { transcribeAudio } from "./stt.js";
 import { describeRouting, routeVoice } from "./voice/routing.js";
 
 const sessions = new Map<string, Session>();
@@ -61,6 +62,25 @@ app.post("/api/tts", async (req, res) => {
     res.status(500).json({
       error: error instanceof Error ? error.message : "TTS failed",
     });
+  }
+});
+
+// STT fallback for browsers without window.SpeechRecognition (Safari,
+// Firefox, mobile) — public/voice.js records with MediaRecorder and posts
+// the raw clip here instead. Scoped express.raw() so the global JSON body
+// parser above is untouched for every other route.
+app.post("/api/stt", express.raw({ type: () => true, limit: "10mb" }), async (req, res) => {
+  const language = String(req.query.language ?? "en-IN");
+  const buffer = req.body;
+  if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+    res.status(400).json({ error: "No audio received" });
+    return;
+  }
+  try {
+    const text = await transcribeAudio(buffer, req.headers["content-type"] || "audio/webm", language);
+    res.json({ text });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Transcription failed" });
   }
 });
 

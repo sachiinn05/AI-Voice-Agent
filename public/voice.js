@@ -210,9 +210,130 @@ export function stopSpeaking() {
 const SHORT_ACK_RE =
   /^(haan|han|ham|hn|haa|hain|hanji|haanji|ji|hmm|ok|okay|yes|yeah|yep|yup|sure|theek|thik|theek hai|thik hai|bilkul|achha|accha)(\s+(haan|han|ji|ok|okay|yes|hai|bilkul))?$/i;
 
+function pickRecorderMimeType() {
+  const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
+  return candidates.find((type) => window.MediaRecorder?.isTypeSupported?.(type)) || "";
+}
+
+function micLevel(analyser) {
+  const data = new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteFrequencyData(data);
+  let sum = 0;
+  for (const v of data) sum += v;
+  return sum / data.length;
+}
+
+// Amplitude-based voice activity detection for browsers without
+// SpeechRecognition (Safari, Firefox, mobile): the mic still works via
+// getUserMedia, there's just no built-in live transcript. Record while the
+// analyser reads "loud" (reusing the analyser openMic() already sets up),
+// stop after a beat of silence, and send the whole clip to /api/stt (Groq
+// Whisper) — no interim partials, but it works everywhere the real call
+// still needs to run.
+const VAD_LOUD = 14;
+const VAD_SILENCE_MS = 700;
+const VAD_POLL_MS = 100;
+
+function createRecorderListener({ language, onPartial, onFinal, onIdle }) {
+  const mimeType = pickRecorderMimeType();
+  let pollHandle = 0;
+  let silenceHandle = 0;
+  let recorder = null;
+  let chunks = [];
+  let recording = false;
+  let loudStreak = 0;
+  let running = false;
+
+  async function transcribe(blob) {
+    if (blob.size < 900) return; // too short to be real speech — a mic blip
+    try {
+      const res = await fetch(`/api/stt?language=${encodeURIComponent(language)}`, {
+        method: "POST",
+        body: blob,
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const text = (data.text || "").trim();
+      if (text) onFinal?.(text);
+    } catch {
+      /* dropped utterance — caller just speaks again */
+    }
+  }
+
+  function beginRecording() {
+    if (!voice.stream || recording) return;
+    chunks = [];
+    recorder = new MediaRecorder(voice.stream, mimeType ? { mimeType } : undefined);
+    recorder.ondataavailable = (e) => {
+      if (e.data.size) chunks.push(e.data);
+    };
+    recorder.onstop = () => void transcribe(new Blob(chunks, { type: mimeType || "audio/webm" }));
+    recorder.start();
+    recording = true;
+  }
+
+  function endRecording() {
+    if (!recording) return;
+    recording = false;
+    if (recorder && recorder.state !== "inactive") recorder.stop();
+    recorder = null;
+  }
+
+  function poll() {
+    if (!running) return;
+    if (voice.analyser) {
+      const loud = micLevel(voice.analyser) > VAD_LOUD;
+
+      if (voice.speaking) {
+        // The agent is talking — only a sustained loud stretch counts as a
+        // real interruption, not a click or a stray syllable.
+        loudStreak = loud ? loudStreak + 1 : 0;
+        if (loudStreak === 3) {
+          stopSpeaking();
+          beginRecording();
+        }
+      } else {
+        loudStreak = 0;
+        if (loud && !recording) beginRecording();
+        if (loud) onPartial?.("…");
+      }
+
+      if (recording) {
+        if (loud) window.clearTimeout(silenceHandle);
+        else {
+          window.clearTimeout(silenceHandle);
+          silenceHandle = window.setTimeout(endRecording, VAD_SILENCE_MS);
+        }
+      }
+    }
+    pollHandle = window.setTimeout(poll, VAD_POLL_MS);
+  }
+
+  return {
+    start() {
+      if (running) return;
+      running = true;
+      poll();
+    },
+    stop() {
+      running = false;
+      window.clearTimeout(pollHandle);
+      window.clearTimeout(silenceHandle);
+      endRecording();
+      onIdle?.();
+    },
+  };
+}
+
 export function createListener({ language, onPartial, onFinal, onBargeIn, onIdle }) {
   if (!SpeechRecognition) {
-    throw new Error("This browser cannot listen. Use Chrome or Edge.");
+    // No live browser recognition (Safari, Firefox, mobile): fall back to
+    // record-then-transcribe. Same start()/stop() shape as a real
+    // SpeechRecognition instance, so startListening()/stopListening() below
+    // and every caller in app.js need no changes at all.
+    const fallback = createRecorderListener({ language, onPartial, onFinal, onIdle });
+    voice.recognition = fallback;
+    return fallback;
   }
   const recognition = new SpeechRecognition();
   recognition.lang = listenLocale(language);
