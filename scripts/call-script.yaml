@@ -14,7 +14,9 @@
 #  not guess.
 #
 #  Edit freely — it's validated when the server starts, so a typo fails loudly
-#  instead of mid-call. Keep lines SHORT: this is spoken, not read.
+#  instead of mid-call. Keep lines SHORT and ACTIVE: cut filler ("just so you
+#  know", "totally"), lead with the strongest word, one idea per sentence.
+#  This is spoken, not read.
 #
 #  Placeholders you can use in any line:
 #    {name}         caller's first name                  "Ananya"
@@ -62,33 +64,33 @@ topics:
     en:
       calls: "order-status calls"
       problem: "\"where is my order\" calls flooding your line"
-      consequence: "a frustrated customer who doesn't order again"
+      consequence: "a frustrated customer who never orders again"
     hi:
       calls: "order-status calls"
       problem: "\"order kahan hai\" wale calls jo line block karte hain"
-      consequence: "customer frustrate hoke dobara order hi nahi karta"
+      consequence: "ek frustrated customer jo dobara order hi nahi karta"
 
   appointment:
     match: [dental, clinic, appointment, salon, spa, booking]
     en:
       calls: "appointment calls"
       problem: "appointment calls that never get through"
-      consequence: "a patient who just books the clinic down the street"
+      consequence: "a patient who books the clinic down the street instead"
     hi:
       calls: "appointment calls"
       problem: "appointment ke calls jo connect hi nahi hote"
-      consequence: "patient bagal wali clinic mein book kar leta hai"
+      consequence: "ek patient jo bagal wali clinic mein book kar leta hai"
 
   general:
     match: []
     en:
       calls: "missed calls"
       problem: "calls you're probably missing right now"
-      consequence: "a customer who just calls your competitor next"
+      consequence: "a customer who calls your competitor next"
     hi:
       calls: "missed calls"
       problem: "calls jo abhi miss ho rahe honge"
-      consequence: "customer seedha competitor ko call kar leta hai"
+      consequence: "ek customer jo seedha competitor ko call kar leta hai"
 
 
 # -----------------------------------------------------------------------------
@@ -107,8 +109,8 @@ flow:
   # --- 1. OPENING -------------------------------------------------------------
   # Outbound cold-open. No pitch here — earn the minute first.
   opening:
-    en: "Hi {name}, this is {ourCompany}'s AI assistant, calling on behalf of {founder}. It'll only take a minute — is now an okay time?"
-    hi: "Namaste {name}, main {ourCompany} ka AI assistant hoon, {founder} ki taraf se call kar raha hoon. Bilkul chhota sa call hai — ek minute milega?"
+    en: "Hi {name}, this is {ourCompany}'s AI assistant, calling for {founder}. Got one minute?"
+    hi: "Namaste {name}, main {ourCompany} ka AI assistant hoon, {founder} ki taraf se. Ek minute milega?"
 
   # --- 2. DISCOVERY -----------------------------------------------------------
   # The one question the whole call is built around. Specific to their business.
@@ -125,8 +127,8 @@ flow:
   # Whatever they said about their process, acknowledge it, then sell what a
   # missed call COSTS them — not what the product does. End on the demo ask.
   pitch:
-    en: "Got it. Every one of those calls that goes unanswered means {consequence}. {ourCompany} gives you an AI voice agent that picks up {calls} the moment they come in — want a quick demo?"
-    hi: "Samajh gaya. Har baar jo call miss hoti hai, uska matlab {consequence}. {ourCompany} ek AI voice agent deta hai jo {calls} turant pick karta hai, chaahe koi available ho ya na ho. Ek chhota demo dikhaun?"
+    en: "Got it. Every missed call means {consequence}. {ourCompany}'s AI answers {calls} instantly, every time — want a quick demo?"
+    hi: "Samajh gaya. Jo call miss hoti hai, uska matlab {consequence}. {ourCompany} ka AI {calls} turant pick karta hai — chaahe koi available ho ya na ho. Ek chhota demo dikhaun?"
 
   pitch_question:
     en: "Want a quick demo?"
@@ -136,8 +138,8 @@ flow:
   # Alternative-choice close: two times, never an open "when?". Say what the
   # times are FOR — a real caller once asked "timing of what?".
   close:
-    en: "Sure thing — let's set up a 15-minute demo with {founder}. I've got {slots}. Which works better for you?"
-    hi: "Bilkul. {founder} ke saath 15 minute ka demo rakh lete hain — {slots}, aapke liye kya better rahega?"
+    en: "Let's get 15 minutes on {founder}'s calendar — {slots}. Which works better?"
+    hi: "{founder} ke saath 15 minute ka demo rakh lete hain — {slots}. Kaunsa better rahega?"
 
   # They said yes but didn't pick — assume the first slot and confirm.
   confirm_slot:
@@ -146,8 +148,8 @@ flow:
 
   # --- 5. WRAP-UP -------------------------------------------------------------
   wrap_up_booked:
-    en: "Perfect, I'll lock {slot}. {founder} will run the demo. I'll send the confirmation link. Thank you, {name}."
-    hi: "Perfect, {slot} rakh dete hain. {founder} aapko demo de denge. Main confirmation link bhej deta hoon. Thank you, {name}."
+    en: "Perfect — locking in {slot}. {founder} will run the demo, and I'll send the confirmation link. Thank you, {name}."
+    hi: "Perfect — {slot} lock kar dete hain. {founder} demo denge, aur confirmation link bhi bhej deta hoon. Thank you, {name}."
 
   wrap_up_not_booked:
     en: "All good, no problem. Thank you, {name}."
@@ -155,7 +157,7 @@ flow:
 
   # Neither offered time worked, or they named their own — don't haggle live.
   availability_captured:
-    en: "All good — I'll send a calendar link and you can pick a time that suits you."
+    en: "No problem — I'll send a calendar link so you can pick a time that works."
     hi: "Theek hai, calendar link bhej dunga. Aap jab free ho tab choose kar lena."
 
 
@@ -167,24 +169,24 @@ flow:
 
 exits:
   no_time:
-    en: "Of course, no problem {name}. I won't take your time now. Thank you."
-    hi: "Bilkul, koi problem nahi {name}. Abhi time nahi lunga. Thank you."
+    en: "Of course, {name} — I won't take any more of your time. Thank you."
+    hi: "Bilkul, {name} — abhi aapka time nahi lunga. Thank you."
 
   do_not_call:
-    en: "Absolutely, understood. I won't call again. Have a good day."
-    hi: "Absolutely, understood. Main dobara call nahi karunga. Have a good day."
+    en: "Understood — I won't call again. Have a good day."
+    hi: "Samajh gaya — main dobara call nahi karunga. Have a good day."
 
   hostile:
     en: "Understood. I won't waste your time. Thank you."
     hi: "Understood. Main aapka time waste nahi karunga. Thank you."
 
   wrong_person:
-    en: "Looks like I have the wrong person. I'll drop off — sorry to bother you."
-    hi: "Galat number lag raha hai. Main drop karta hoon — disturb karne ke liye sorry."
+    en: "Looks like I have the wrong person — I'll drop off. Sorry to bother you."
+    hi: "Galat number lag raha hai — main drop karta hoon. Disturb karne ke liye sorry."
 
   silence:
-    en: "Looks like a connection issue. I'll end the call here. Thank you."
-    hi: "Lagta hai connection issue hai. Main call yahin end karta hoon. Thank you."
+    en: "Sounds like the line dropped. I'll end the call here. Thank you."
+    hi: "Lagta hai line drop ho gayi. Main call yahin end karta hoon. Thank you."
 
 
 # -----------------------------------------------------------------------------
@@ -205,7 +207,7 @@ steering:
   # The question we're steering back to, per beat.
   anchor:
     opening:
-      en: "Is now an okay time?"
+      en: "Got one minute?"
       hi: "Ek minute milega?"
     default:
       en: "Yeah, go ahead."
@@ -213,8 +215,8 @@ steering:
 
   # A question we have no answer for. Say so, don't guess, pivot to the demo.
   faq_no_match:
-    en: "Good question — I don't have the exact answer on that, and I won't guess. It's exactly the kind of thing {founder} walks through in the demo."
-    hi: "Achha sawal hai — iska exact answer mere paas abhi nahi hai, aur main guess nahi karunga. Yeh exactly wahi cheez hai jo {founder} demo mein detail se batayenge."
+    en: "Good question — I don't have the exact answer, and I won't guess. That's exactly what {founder} walks through in the demo."
+    hi: "Achha sawal — iska exact answer abhi mere paas nahi hai, aur guess nahi karunga. Yeh exactly wahi cheez hai jo {founder} demo mein detail se batayenge."
 
   # Said the instant the caller stops talking, while the real reply is
   # generated. Short, varied, pre-recorded at startup so they're instant.
@@ -231,62 +233,64 @@ steering:
 #   • "not interested" or "who gave you my number" twice → we wrap up. No third try.
 #   • three objections total on a "not interested" → wrap up.
 #   • "no time" → exit immediately. Never pitch someone who said they're busy.
+#   • a bare "no" / "nahi" (no elaboration) → wrap up immediately, no rebuttal.
 
 objections:
 
-  # Feel / felt / found. Reduce risk ("we stop right there"). Then close.
+  # Feel / felt / found, compressed into one line. Reduce risk. Then close.
   not_interested:
-    en: "Totally get it — a lot of people feel that way at first. But once they actually see it catch {calls} live, most change their mind fast. If a short demo isn't useful, we stop right there, no pressure. {close}"
-    hi: "Bilkul samajh sakta hoon — zyada log pehle aisa hi sochte hain. Lekin jab woh demo mein live {calls} handle hote dekhte hain, zyadatar apna mind badal lete hain. Agar useful na lage toh wahin ruk jaate hain, koi pressure nahi. {close}"
+    en: "Totally get it — most people feel that way, until they see it catch {calls} live. If the demo's not useful, we stop right there, no pressure. {close}"
+    hi: "Bilkul samajh sakta hoon — zyada log pehle aisa hi sochte hain, jab tak woh isse live {calls} catch karte nahi dekh lete. Agar demo useful na lage, wahin ruk jaate hain — koi pressure nahi. {close}"
 
   # Don't attack what they have. Reframe as a second opinion.
   already_use_competitor:
-    en: "Good to know — this isn't about ripping that out. Think of it as a second opinion: we compare how it handles {calls} against what you already have. Worth a short look?"
-    hi: "Achha, good to know. Yeh replace karne ki baat nahi hai — bas ek second opinion samjho. Hum compare kar sakte hain ki {calls} ko aapka current setup kitna achhe se handle karta hai. Short demo dekhna chahenge?"
+    en: "Good to know — this isn't about ripping anything out. Think of it as a second opinion on {calls}, compared to what you've already got. Worth a short look?"
+    hi: "Achha, good to know. Yeh replace karne ki baat nahi hai — bas ek second opinion samjho, {calls} ko aapke current setup se compare karke. Short demo dekhna chahenge?"
 
   # Agree, then explain why the call is faster than the email. Close.
   send_email:
-    en: "Happy to email it over. Just so you know, a 2-minute call usually explains it faster than reading — if it's not useful, feel free to ignore the email after. {close}"
+    en: "Happy to send it over. A 2-minute call usually explains it faster than reading, though — if it's not useful, just ignore the email after. {close}"
     hi: "Bilkul, email kar deta hoon. Bas itna — 2 minute ka call usually padhne se fast samajh aata hai. Agar useful na laga toh email ignore kar dena. {close}"
 
-  # Never quote a number on a cold call. Tie price to the demo.
+  # Refuse to guess FIRST, then give the reason. Never quote a number cold.
   how_much:
-    en: "It depends on your call volume, so I won't quote a random number. The demo walks through exact pricing once we've seen how many {calls} you're actually getting. {close}"
-    hi: "Yeh aapke call volume par depend karta hai, isliye main random number nahi dunga. Demo mein exact pricing dikh jaayegi jab pata chalega ki kitne {calls} aate hain. {close}"
+    en: "I won't quote a random number — pricing depends on your call volume. The demo shows exact numbers once we know roughly how many {calls} you get. {close}"
+    hi: "Random number nahi dunga — pricing aapke call volume pe depend karta hai. Demo mein exact pricing dikh jaayegi jab pata chalega ki roughly kitne {calls} aate hain. {close}"
 
   # Always honest. Then straight back to being useful.
   is_this_ai:
-    en: "Yes, I'm {ourCompany}'s AI assistant — you're talking to me right now. Ask me anything about how it works, or I can set up the demo."
-    hi: "Haan, main {ourCompany} ka AI assistant hoon — aap abhi mujhse hi baat kar {rahe} hain. Kaise kaam karta hai pooch sakte ho, ya main demo set kar doon."
+    en: "Yes — I'm {ourCompany}'s AI assistant, talking to you right now. Ask me anything, or I'll set up the demo."
+    hi: "Haan — main {ourCompany} ka AI assistant hoon, aap abhi mujhse hi baat kar {rahe} hain. Kuch bhi poochho, ya main demo set kar doon."
 
-  # Busy means busy. Exit, don't negotiate.
+  # Busy means busy. Exit, don't negotiate. (Dead code path — no_time exits
+  # via the "no_time" branch in stateMachine.ts before this is ever read.)
   no_time:
     en: "Of course, no problem. I won't take your time now. Thank you."
     hi: "Bilkul, koi problem nahi. Abhi time nahi lunga. Thank you."
 
   # Answer plainly, offer the out. Asked twice → we wrap up.
   who_gave_number:
-    en: "This is {ourCompany} calling about our voice assistant. If you'd rather I didn't contact you again, I'll stop right here."
-    hi: "Yeh {ourCompany} ka call hai hamare voice assistant ke baare mein. Agar aap nahi chahte ki main dobara contact karun, toh main yahin stop karta hoon."
+    en: "This is {ourCompany}, calling about our voice assistant. Say the word and I won't contact you again."
+    hi: "Yeh {ourCompany} ka call hai, hamare voice assistant ke baare mein. Bolo toh main dobara contact nahi karunga."
 
   # Accept it, but try to lock a time now — "later" usually means never.
   call_later:
-    en: "Sure, I can call back. Or if it's easier, lock one time now — {slots}?"
-    hi: "Sure, main baad mein call kar sakta hoon. Waise agar convenient ho toh {slots} mein se ek time fix kar dein?"
+    en: "Sure — or if it's easier, let's just lock a time now: {slots}?"
+    hi: "Sure — ya agar aasan ho toh abhi hi ek time fix kar lein: {slots}?"
 
   # Don't push past the gatekeeper. Make it easy to forward, offer to include them.
   not_decision_maker:
-    en: "No problem — I'll keep it quick so you can pass it along properly. Want me to walk you through it now, or set up a short demo with both of you?"
-    hi: "Koi baat nahi — main jaldi rakhta hoon taaki aap sahi se aage bata sakein. Main abhi quickly samjha doon, ya dono ke saath short demo rakh doon?"
+    en: "No problem — I'll keep this quick so you can pass it on properly. Want me to walk you through it now, or set up a demo with both of you?"
+    hi: "Koi baat nahi — jaldi rakhta hoon taaki aap sahi se aage bata sakein. Abhi quickly samjha doon, ya dono ke saath demo rakh doon?"
 
-  # Agree, then make the demo the easy way to actually decide — not just an email.
+  # Agree, then make the demo the fast way to actually decide — not an email.
   need_to_think:
-    en: "Totally fair, take your time. Most people find it easier to decide after seeing it work on a real call, not just hearing about it — that's exactly what the demo shows. Want to pencil in a time, no commitment either way?"
-    hi: "Bilkul, soch lijiye. Zyadatar logon ko decide karna aasan hota hai jab woh live demo mein kaam karte dekh lete hain. Ek time pencil kar doon — koi commitment nahi hai?"
+    en: "Fair enough, take your time. Most people decide faster after seeing it work on a real call, not just hearing about it — that's what the demo's for. Want to pencil in a time? No commitment either way."
+    hi: "Bilkul, soch lijiye. Log real call pe kaam hote dekh kar jaldi decide karte hain, sirf sunne se nahi — demo isiliye hai. Ek time pencil kar doon? Koi commitment nahi."
 
   # Validate, differentiate from the bad bots, make the demo the stakes-free test.
   bad_past_experience:
-    en: "That's fair — a lot of bots sound robotic and fall apart the moment something's unexpected. This one's built to actually hold a conversation, which is exactly what the demo tests. If it does the same thing yours did, you'll know in two minutes."
+    en: "Fair — most bots sound robotic and fall apart the second something's unexpected. This one's built to actually hold a conversation, and that's exactly what the demo tests. If it repeats the same problem, you'll know in two minutes."
     hi: "Bilkul samajh sakta hoon — bahut saare bots robotic sound karte hain aur alag sawaal aate hi atak jaate hain. Yeh real conversation handle karne ke liye bana hai — demo mein wahi test ho jaayega. Agar wahi purana problem repeat hua, do minute mein pata chal jaayega."
 
 
@@ -314,7 +318,7 @@ faq:
       - aap kya karte ho
       - kya product hai
       - yeh kis baare mein hai
-    en: "{ourCompany} is an AI voice agent that answers your phone when nobody else can — nights, weekends, or when the line's busy. It talks to the caller, handles the routine stuff, and passes the rest to your team."
+    en: "{ourCompany} is an AI voice agent that answers your phone when nobody else can — nights, weekends, or a busy line. It talks to the caller, handles the routine stuff, and passes the rest to your team."
     hi: "{ourCompany} ek AI voice agent hai jo aapka phone tab uthata hai jab koi aur nahi utha sakta — raat ko, weekend pe, ya line busy ho. Caller se baat karta hai, routine cheezein khud handle karta hai, aur baaki aapki team ko de deta hai."
 
   - id: how_it_works
@@ -326,8 +330,8 @@ faq:
       - kaise kaam karta hai
       - yeh kaise chalega
       - call aane pe kya hoga
-    en: "A call comes in, the agent picks up, greets the caller by your company name, and understands what they need — like this call. It can answer common questions, take a message, or book a slot, and sends your team a summary straight after."
-    hi: "Call aati hai, agent uthata hai, aapki company ke naam se greet karta hai, aur samajhta hai caller ko kya chahiye — bilkul is call ki tarah. Common sawaal answer kar sakta hai, message le sakta hai, ya slot book kar sakta hai, aur turant aapki team ko summary bhej deta hai."
+    en: "A call comes in, the agent picks up, greets the caller by your company name, and figures out what they need — like this call, right now. It answers common questions, takes a message, or books a slot, and sends your team a summary straight after."
+    hi: "Call aati hai, agent uthata hai, aapki company ke naam se greet karta hai, aur samajhta hai caller ko kya chahiye — bilkul is call ki tarah. Common sawaal answer karta hai, message leta hai, ya slot book karta hai, aur turant aapki team ko summary bhej deta hai."
 
   - id: languages
     ask:
@@ -338,7 +342,7 @@ faq:
       - hindi mein baat karega
       - kaunsi languages
       - hinglish samajhta hai
-    en: "It speaks Hindi, Hinglish, Indian English and US English — and it's speaking Hinglish to you right now, so you can judge for yourself. You pick the language per phone line."
+    en: "Hindi, Hinglish, Indian English, US English — and it's speaking Hinglish to you right now, so judge for yourself. You pick the language per phone line."
     hi: "Hindi, Hinglish, Indian English aur US English — aur abhi aapse Hinglish mein hi baat kar raha hai, toh khud sun lijiye. Har phone line ke liye language aap choose karte ho."
 
   - id: pricing
@@ -352,7 +356,7 @@ faq:
       - kitne ka hai
       - price kya hai
       - monthly kitna
-    en: "It's priced on call volume, so I won't throw a random number at you on the phone. {founder} shows exact pricing in the demo once we know roughly how many {calls} you get."
+    en: "Pricing is based on call volume, so I won't throw a random number at you on the phone. {founder} shows exact pricing in the demo once we know roughly how many {calls} you get."
     hi: "Pricing call volume pe hai, isliye phone pe random number nahi bolunga. Demo mein {founder} exact pricing dikhate hain jab pata chal jaaye ki roughly kitne {calls} aate hain."
 
   - id: integration
@@ -364,7 +368,7 @@ faq:
       - new number lena padega
       - humare number pe chalega
       - existing system ke saath
-    en: "Your number stays exactly the same. Calls forward to the agent when you're closed or busy — no new hardware, no app to install, and your team keeps using the phones they already have."
+    en: "Your number stays exactly the same. Calls forward to the agent when you're closed or busy — no new hardware, no app to install, and your team keeps the phones they already have."
     hi: "Aapka number bilkul wahi rehta hai. Jab aap band ho ya busy ho, calls agent ko forward ho jaati hain — koi naya hardware nahi, koi app install nahi, aur team wahi phone use karti rehti hai."
 
   - id: handoff
@@ -377,7 +381,7 @@ faq:
       - agar samajh na aaye toh
       - insaan se baat karwa sakta hai
       - transfer kar sakta hai
-    en: "If a caller needs something it can't handle, it takes a message and flags it to your team right away — or transfers live to a person if you want that. It never guesses on things like medical or account questions."
+    en: "If a caller needs something it can't handle, it takes a message and flags your team right away — or transfers live to a person if you want that set up. It never guesses on medical or account questions."
     hi: "Agar caller ko kuch aisa chahiye jo yeh handle nahi kar sakta, toh message leta hai aur turant aapki team ko flag karta hai — ya aap chaho toh live insaan ko transfer kar deta hai. Medical ya account jaise sawaalon pe kabhi guess nahi karta."
 
   - id: emergencies
@@ -386,7 +390,7 @@ faq:
       - what if it is urgent
       - emergency call aaye toh
       - urgent ho toh kya
-    en: "Urgent calls are the whole point. It recognises when something's serious, tells the caller what to do immediately, and alerts your duty person at the same time — instead of the call ringing out."
+    en: "Urgent calls are the whole point. It recognises when something's serious, tells the caller what to do immediately, and alerts your duty person at the same time — instead of the call just ringing out."
     hi: "Urgent calls ke liye hi toh hai. Jab kuch serious ho toh pehchaan leta hai, caller ko turant batata hai kya karna hai, aur saath hi aapke duty person ko alert karta hai — line ring hoke cut hone ke bajaye."
 
   - id: booking
@@ -396,7 +400,7 @@ faq:
       - can it schedule
       - appointment book kar sakta hai
       - order le sakta hai
-    en: "Yes — it can book appointments, take order details, or capture a callback time, and it confirms by SMS or WhatsApp. Exactly what it's about to do with you, in fact."
+    en: "Yes — it books appointments, takes order details, or captures a callback time, and confirms by SMS or WhatsApp. Exactly what it's about to do with you, in fact."
     hi: "Haan — appointment book kar sakta hai, order details le sakta hai, ya callback time note kar sakta hai, aur SMS ya WhatsApp pe confirm karta hai. Bilkul jaise abhi aapke saath karne wala hai."
 
   - id: setup_time
@@ -406,7 +410,7 @@ faq:
       - when can we start
       - setup mein kitna time
       - kab se shuru
-    en: "Usually a few days. We load your details and the answers you want it to give, test it on your line, and go live. No long project."
+    en: "Usually a few days. We load your details and the answers you want it to give, test it on your line, and go live — no long project."
     hi: "Usually kuch din. Aapki details aur jo answers aap dena chahte ho woh load karte hain, aapki line pe test karte hain, aur live. Koi lamba project nahi."
 
   - id: privacy
@@ -418,7 +422,7 @@ faq:
       - data safe hai
       - privacy ka kya
       - secure hai
-    en: "Call recordings and details stay private to your account and aren't used to train anything. {founder} can walk you through exactly what's stored and for how long in the demo."
+    en: "Call recordings and details stay private to your account and are never used to train anything. {founder} can walk you through exactly what's stored, and for how long, in the demo."
     hi: "Call recordings aur details sirf aapke account mein rehti hain aur kisi training ke liye use nahi hoti. Demo mein {founder} exactly bata sakte hain kya store hota hai aur kitne time tak."
 
   - id: sounds_robotic
@@ -428,7 +432,7 @@ faq:
       - does it sound natural
       - robot jaisa lagega
       - log pakad lenge
-    en: "You're hearing it right now — you can judge. It also tells callers up front that it's an AI assistant, and most people are just relieved someone picked up."
+    en: "You're hearing it right now — judge for yourself. It also tells callers up front that it's an AI assistant, and most people are just relieved someone picked up."
     hi: "Abhi aap sun hi {rahe} ho — khud judge kar lijiye. Yeh callers ko pehle hi bata deta hai ki AI assistant hai, aur zyadatar log bas khush hote hain ki kisi ne phone uthaya."
 
   - id: trial
@@ -439,7 +443,7 @@ faq:
       - pehle try kar sakte hain
       - trial hai
       - test karke dekh sakte hain
-    en: "Yes — the demo itself runs on your real scenario, and if it makes sense we set it up on a single line first so you can hear real calls before committing to anything."
+    en: "Yes — the demo itself runs on your real scenario, and if it makes sense we set it up on a single line first so you hear real calls before committing to anything."
     hi: "Haan — demo aapke real scenario pe hi hota hai, aur agar sense bane toh pehle ek line pe lagate hain taaki commit karne se pehle aap real calls sun sako."
 
   - id: hours
@@ -461,7 +465,7 @@ faq:
       - aap kaun ho
       - kaunsi company
       - sachin kaun hai
-    en: "I'm {ourCompany}'s AI assistant, calling for {founder}, who runs the company. He's the one who'd walk you through the demo personally."
+    en: "I'm {ourCompany}'s AI assistant, calling for {founder}, who runs the company — he's the one who'd walk you through the demo personally."
     hi: "Main {ourCompany} ka AI assistant hoon, {founder} ke liye call kar raha hoon — woh company chalate hain. Demo woh khud personally dete hain."
 
   - id: contract
@@ -471,5 +475,5 @@ faq:
       - lock in period
       - contract hai kya
       - kabhi bhi band kar sakte hain
-    en: "No lock-in — it's month to month, and you can stop whenever you like. {founder} will confirm the exact terms in the demo."
+    en: "No lock-in — it's month to month, and you can stop whenever you like. {founder} confirms the exact terms in the demo."
     hi: "Koi lock-in nahi — month to month hai, aur jab chaho band kar sakte ho. Exact terms {founder} demo mein confirm kar denge."
