@@ -9,8 +9,8 @@ knowledge/*.pdf
 .DS_Store
 *.log
 
-# Personal notes, not project source
-Lipi-AI-Complete-Interview-Handbook.pdf
+# RAG vector index — regenerate locally with `npm run ingest`
+data/rag-index.json
 
 # Local voice A/B samples (npm run voices -- --sample)
 .voice-samples/

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { config } from "../config.js";
 import { loadCalls, loadLeads } from "../leads/store.js";
 import { getScript } from "../script/scriptFile.js";
+import { loadIndex } from "../rag/store.js";
 
 export const dashboardRouter = Router();
 
@@ -36,12 +37,17 @@ dashboardRouter.get("/api/bookings", async (_req, res) => {
 });
 
 /** The script itself, for the dashboard's Script tab. */
-dashboardRouter.get("/api/script", (_req, res) => {
-  res.json({ path: config.scriptPath, script: getScript() });
+dashboardRouter.get("/api/script", async (_req, res) => {
+  const index = await loadIndex();
+  res.json({
+    path: config.scriptPath,
+    script: getScript(),
+    rag: index ? { source: index.source, chunks: index.chunks.length, model: index.model, createdAt: index.createdAt } : null,
+  });
 });
 
 dashboardRouter.get("/api/dashboard", async (_req, res) => {
-  const [calls, leads] = await Promise.all([loadCalls(), loadLeads()]);
+  const [calls, leads, index] = await Promise.all([loadCalls(), loadLeads(), loadIndex()]);
   const questions = calls.flatMap((call) => call.questions_asked ?? []);
   const unanswered = questions.filter((q) => !q.faqId);
   const booked = calls.filter((call) => call.disposition === "Meeting Booked" || call.meeting_details);
@@ -56,9 +62,10 @@ dashboardRouter.get("/api/dashboard", async (_req, res) => {
       booked: booked.length,
       leads: leads.length,
       questions: questions.length,
-      // Questions the script had no answer for — the list to grow the FAQ from.
+      // Questions the PDF's RAG index had no answer for — run `npm run ingest`
+      // again after updating the PDF to grow coverage.
       unanswered: unanswered.length,
-      faqEntries: getScript().faq.length,
+      ragChunks: index?.chunks.length ?? 0,
     },
     recentCalls: calls.slice(0, 12),
     bookings: booked.slice(0, 12),

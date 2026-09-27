@@ -66,6 +66,9 @@ export const ScriptSchema = z.object({
     need_to_think: Line,
     bad_past_experience: Line,
   }),
+  // Mid-call Q&A is now answered by PDF-backed RAG (src/rag/*), not this
+  // file — kept optional so an old script that still carries a `faq:` block
+  // stays valid.
   faq: z
     .array(
       z.object({
@@ -75,7 +78,7 @@ export const ScriptSchema = z.object({
         hi: z.string().trim().min(1),
       }),
     )
-    .min(1),
+    .default([]),
 });
 
 export type CallScript = z.infer<typeof ScriptSchema>;

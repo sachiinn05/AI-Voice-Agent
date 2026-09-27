@@ -6,6 +6,7 @@ import { dialLead, planDials } from "./orchestrator/dialer.js";
 import { handleTurn } from "./conversation/turn.js";
 import { createSession, startCall } from "./script/stateMachine.js";
 import { addToDnc } from "./compliance/dnc.js";
+import { ingestPdf } from "./rag/ingest.js";
 
 async function simulate() {
   const leads = await loadLeads();
@@ -57,10 +58,17 @@ async function dial() {
   console.log(result);
 }
 
+async function ingest() {
+  const pdfPath = process.argv[3];
+  const result = await ingestPdf(pdfPath);
+  console.log(`Indexed ${result.chunks} chunks from ${result.source} -> ${result.indexPath}`);
+}
+
 const cmd = process.argv[2];
 if (cmd === "sim") await simulate();
 else if (cmd === "dial") await dial();
+else if (cmd === "ingest") await ingest();
 else {
-  console.log("Usage: npm run sim | npm run dial | npm run dev");
+  console.log("Usage: npm run sim | npm run dial | npm run ingest | npm run dev");
   process.exit(1);
 }

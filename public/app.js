@@ -314,7 +314,7 @@ async function ensureMic() {
 function showVia(via, faqId) {
   if (!viaBadge) return;
   if (via === "faq") {
-    viaBadge.textContent = `Answered from the script FAQ · ${faqId || ""}`.trim();
+    viaBadge.textContent = `Answered from the PDF (RAG) · ${faqId || ""}`.trim();
     viaBadge.className = "via-badge rag";
   } else if (via === "steer") {
     viaBadge.textContent = "Script line, said Groq's way — same facts";
@@ -361,7 +361,7 @@ async function playAgent(text, via, faqId) {
   caption("Agent", text);
   setPhase("speaking");
   showVia(via, faqId);
-  if (via === "faq") statusEl.textContent = "Agent speaking · script FAQ";
+  if (via === "faq") statusEl.textContent = "Agent speaking · PDF RAG";
   if (via === "steer") statusEl.textContent = "Agent speaking · Groq steer";
   if (via === "groq") statusEl.textContent = "Agent speaking · Groq";
   if (via === "script") statusEl.textContent = "Agent speaking · script";
@@ -605,7 +605,7 @@ async function loadOverview() {
     ["Leads", stats.leads],
     ["Questions", stats.questions],
     ["No match", stats.unanswered],
-    ["FAQ entries", stats.faqEntries],
+    ["PDF chunks", stats.ragChunks],
   ]
     .map(([label, value]) => `<div class="card"><strong>${escapeHtml(value ?? 0)}</strong><span>${label}</span></div>`)
     .join("");
@@ -673,7 +673,7 @@ async function loadQuestions() {
         .map(
           (q) =>
             `<div class="lead"><strong>${escapeHtml(q.question)}</strong><span class="meta">${escapeHtml(q.contactName || "")} · ${
-              q.faqId ? "FAQ: " + escapeHtml(q.faqId) : "<b>no match</b> — add it to scripts/call-script.yaml"
+              q.faqId ? "RAG chunk: " + escapeHtml(q.faqId) : "<b>no match</b> — not covered by the ingested PDF"
             }</span></div>`,
         )
         .join("")
@@ -702,14 +702,12 @@ async function loadScriptView() {
   const pathEl = document.getElementById("script-path");
   if (pathEl) pathEl.textContent = data.path;
   const { faq, ...rest } = data.script;
-  const faqHtml = (faq || [])
-    .map(
-      (f) =>
-        `<div class="script-beat"><strong>${escapeHtml(f.id)}</strong><span class="meta">asked as: ${f.ask.map(escapeHtml).join(" / ")}</span><p class="t-line t-agent"><b>en</b>${escapeHtml(f.en)}</p><p class="t-line t-agent"><b>hi</b>${escapeHtml(f.hi)}</p></div>`,
-    )
-    .join("");
+  const rag = data.rag;
+  const ragHtml = rag
+    ? `<div class="script-beat"><strong>${escapeHtml(rag.source)}</strong><span class="meta">${rag.chunks} chunks · ${escapeHtml(rag.model)} · indexed ${escapeHtml(rag.createdAt)}</span></div>`
+    : `<div class="script-beat"><span class="meta">No index yet — run <code>npm run ingest</code> after setting GEMINI_API_KEY.</span></div>`;
   document.getElementById("script-view").innerHTML =
-    scriptLines(rest) + `<div class="script-section"><h3>faq (${(faq || []).length})</h3>${faqHtml}</div>`;
+    scriptLines(rest) + `<div class="script-section"><h3>Knowledge (PDF RAG)</h3>${ragHtml}</div>`;
 }
 
 document.querySelector(".tabs")?.addEventListener("click", (event) => {

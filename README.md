@@ -48,7 +48,7 @@ Open [http://localhost:3000](http://localhost:3000). Pick an **agent**, pick a *
 1. **One script file** — [`scripts/call-script.yaml`](scripts/call-script.yaml) is the only thing the agent can say: the five beats of the call, every objection comeback, and an FAQ. It's validated at startup, so a typo fails loudly instead of mid-call. Edit the YAML to change the call — no code.
 2. **State machine** — opening → discovery → pitch → close → wrap-up. Not free-form chat; every beat ends on a question and the agent waits.
 3. **Groq** — understands what the caller *meant* (intent), and can say a script line more naturally. It never decides *what* to say, and every fact stays locked to the file.
-4. **Questions mid-call** — matched against the script's FAQ (local embeddings + keywords, no database). A hit is spoken word-for-word and the call resumes its beat; no hit → "I won't guess, that's what the demo covers." Groq only breaks ties between close candidates.
+4. **Questions mid-call — real RAG over a PDF** — [`knowledge/*.pdf`](knowledge/) is chunked with a token-aware splitter (`js-tiktoken`, cl100k_base) and embedded with Gemini (`text-embedding-004`, free tier) into a local vector index (`data/rag-index.json`, cosine search — no server, see [`src/rag/`](src/rag/)). A caller's question is embedded the same way, matched against the index, and Groq writes the spoken answer grounded strictly in the retrieved chunks. Below the confidence floor, or if Groq can't ground an answer in the chunks, it says so → "I won't guess, that's what the demo covers." Run `npm run ingest` after changing the PDF.
 5. **Voice** — browser mic in; Sarvam Bulbul (native Hinglish) or free Edge neural voices out. Backchannels ("haan, samajh gaya…") are pre-recorded and play instantly while the real reply generates. Real phone calls via Vapi when keys are set.
 6. **After the call** — transcript, score, next action, and every question asked (with which FAQ entry answered it — or that none did, which is the list to grow the script from).
 
@@ -57,9 +57,20 @@ Open [http://localhost:3000](http://localhost:3000). Pick an **agent**, pick a *
 Everything the agent says is in [`scripts/call-script.yaml`](scripts/call-script.yaml), written top to bottom like the call itself. Placeholders like `{name}`, `{company}`, `{calls}` fill in per lead; `topics:` maps a lead's industry to the story it hears. Add a question callers keep asking to `faq:` with a few `ask:` phrasings and it starts working on restart.
 
 ```bash
-npm test          # 89 tests, including one that renders every line in every language
+npm test          # includes one test that renders every line in every language
 npm run voices    # list the free Edge voices; -- --sample renders A/B clips
+npm run ingest    # (re)build the PDF vector index — needs GEMINI_API_KEY
 ```
+
+## PDF-backed RAG
+
+Everything the agent *must* say (opening, pitch, close, objections) still comes from [`scripts/call-script.yaml`](scripts/call-script.yaml). But an open-ended question mid-call — "do you support Hindi?", "is my data safe?" — is now answered by real retrieval-augmented generation over a PDF instead of a hand-written FAQ list:
+
+1. Drop a PDF in [`knowledge/`](knowledge/) (gitignored — bring your own; `RAG_PDF_PATH` in `.env` points at it).
+2. `npm run ingest` — extracts the text ([`src/rag/pdf.ts`](src/rag/pdf.ts)), splits it into overlapping ~300-token chunks with a real BPE tokenizer ([`src/rag/chunk.ts`](src/rag/chunk.ts)), embeds each chunk with OpenAI ([`src/rag/embeddings.ts`](src/rag/embeddings.ts)), and writes a local vector index to `data/rag-index.json` ([`src/rag/store.ts`](src/rag/store.ts)).
+3. On a call, a caller's question is embedded the same way, matched against the index by cosine similarity, and Groq is asked to answer using **only** the retrieved chunks ([`src/rag/answer.ts`](src/rag/answer.ts)) — never inventing a fact, same guarantee the old scripted FAQ gave.
+
+No `GEMINI_API_KEY` / no index yet → the agent gives the honest "I don't know, here's what I can show you" pivot instead of guessing.
 
 ## Resume bullet
 

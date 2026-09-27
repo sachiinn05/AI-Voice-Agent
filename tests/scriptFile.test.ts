@@ -27,7 +27,6 @@ const ananya: Lead = {
 describe("scripts/call-script.yaml", () => {
   it("loads and validates", () => {
     const script = loadScript(scriptPath());
-    expect(script.faq.length).toBeGreaterThanOrEqual(10);
     expect(Object.keys(script.topics)).toContain("general");
   });
 

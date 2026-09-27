@@ -56,6 +56,15 @@ export const config = {
   groqModel: env("GROQ_MODEL", "openai/gpt-oss-120b"),
   /** The one file with every line the agent can say. See scripts/call-script.yaml. */
   scriptPath: env("SCRIPT_PATH", "scripts/call-script.yaml"),
+  // PDF-backed RAG for mid-call questions (src/rag/*): Gemini embeds the PDF
+  // and the caller's question, a local JSON vector index finds the nearest
+  // chunks, Groq writes the spoken answer grounded in them.
+  geminiApiKey: env("GEMINI_API_KEY"),
+  geminiEmbeddingModel: env("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001"),
+  ragPdfPath: path.resolve(root, env("RAG_PDF_PATH", "knowledge/lipi-ai-knowledge-base.pdf")),
+  ragIndexPath: path.resolve(root, env("RAG_INDEX_PATH", "data/rag-index.json")),
+  ragChunkTokens: Number(env("RAG_CHUNK_TOKENS", "300")),
+  ragChunkOverlap: Number(env("RAG_CHUNK_OVERLAP", "60")),
   leadsPath: path.resolve(root, env("LEADS_PATH", "data/leads.csv")),
   dncPath: path.resolve(root, env("DNC_PATH", "data/dnc.csv")),
   callsPath: path.resolve(root, env("CALLS_PATH", "data/calls.json")),

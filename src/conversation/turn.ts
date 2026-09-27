@@ -1,6 +1,6 @@
 import { classifyRoute, wantsFaq } from "./router.js";
 import { classifyIntent, naturalizeReply, steerBackToScript } from "../llm/groq.js";
-import { answerFromScript, type FaqMatch } from "../script/faq.js";
+import { answerFromPdf, type RagMatch } from "../rag/answer.js";
 import { isOffScript } from "../script/intent.js";
 import { defaultMeetingSlots, faqNoMatchLine } from "../script/lines.js";
 import {
@@ -23,17 +23,17 @@ export type TurnResult = {
   via: "script" | "groq" | "steer" | "faq";
   intent: Intent;
   route: ConversationRoute;
-  /** Which FAQ entry answered, when one did. */
+  /** Which retrieved PDF chunk answered, when one did. */
   faqId: string | null;
   ended: boolean;
 };
 
 /**
- * Caller asked a question. Answer it from the script's FAQ, verbatim, without
+ * Caller asked a question. Answer it from the ingested PDF via RAG, without
  * moving the call off its current beat — then the flow resumes. Not covered
  * → say so and pivot to the demo. Never invent.
  */
-function speakAnswer(session: Session, text: string, intent: Intent, match: FaqMatch | null): TurnResult {
+function speakAnswer(session: Session, text: string, intent: Intent, match: RagMatch | null): TurnResult {
   const answer = match?.answer ?? faqNoMatchLine(session.lead.preferred_language);
   const agent = recordSideReply(session, text, answer, { via: match ? "faq" : "script" });
   session.questionsAsked.push({ question: text, faqId: match?.id ?? null, at: new Date().toISOString() });
@@ -71,13 +71,13 @@ export async function handleTurn(session: Session, text: string): Promise<TurnRe
     intent = "accept_slot";
   }
 
-  // A question gets tried against the script FAQ first, whatever label the
-  // LLM gave it. A hit is spoken verbatim and the call stays on its beat.
+  // A question gets tried against the ingested PDF (RAG) first, whatever
+  // label the LLM gave it. A hit is spoken and the call stays on its beat.
   // No hit: an explicit company question gets the honest "don't know →
   // demo" pivot; anything else falls through to the normal flow, so a
   // "hello, are you there?" is handled as off-script, not as a lookup.
   if (!session.ended && wantsFaq(intent, text)) {
-    const match = await answerFromScript(text, session.lead, session.lead.preferred_language);
+    const match = await answerFromPdf(text, session.lead, session.lead.preferred_language);
     if (match || intent === "company_knowledge") return speakAnswer(session, text, intent, match);
   }
 
