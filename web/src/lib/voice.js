@@ -1,3 +1,8 @@
+// Ported unchanged from the old public/voice.js — browser mic capture,
+// speech recognition (with a MediaRecorder+Whisper fallback for Safari/
+// Firefox/mobile), echo detection, and TTS playback. Kept as plain JS
+// (framework-agnostic, no DOM lookups besides a <canvas> passed in) so the
+// React rewrite doesn't risk this delicate audio logic.
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 const SILENT_WAV =
@@ -330,7 +335,7 @@ export function createListener({ language, onPartial, onFinal, onBargeIn, onIdle
     // No live browser recognition (Safari, Firefox, mobile): fall back to
     // record-then-transcribe. Same start()/stop() shape as a real
     // SpeechRecognition instance, so startListening()/stopListening() below
-    // and every caller in app.js need no changes at all.
+    // and every caller need no changes at all.
     const fallback = createRecorderListener({ language, onPartial, onFinal, onIdle });
     voice.recognition = fallback;
     return fallback;

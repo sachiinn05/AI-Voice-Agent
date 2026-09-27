@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 // @ts-expect-error - plain browser ESM, not part of the tsconfig src build
-import { looksLikeEcho } from "../public/voice.js";
+import { looksLikeEcho } from "../web/src/lib/voice.js";
 
 // Regression test for the barge-in/echo gap: without headphones, the mic can
 // pick up the agent's own TTS from the speaker. looksLikeEcho() should

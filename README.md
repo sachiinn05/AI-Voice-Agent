@@ -45,16 +45,16 @@ Open [http://localhost:3000](http://localhost:3000). Pick an **agent**, pick a *
 
 ## How it works
 
-1. **One script file** — [`scripts/call-script.yaml`](scripts/call-script.yaml) is the only thing the agent can say: the five beats of the call, every objection comeback, and an FAQ. It's validated at startup, so a typo fails loudly instead of mid-call. Edit the YAML to change the call — no code.
+1. **One script file** — [`scripts/call-script.yaml`](scripts/call-script.yaml) is the only thing the agent can say: the five beats of the call and every objection comeback. It's validated at startup, so a typo fails loudly instead of mid-call. Edit the YAML to change the call — no code.
 2. **State machine** — opening → discovery → pitch → close → wrap-up. Not free-form chat; every beat ends on a question and the agent waits.
 3. **Groq** — understands what the caller *meant* (intent), and can say a script line more naturally. It never decides *what* to say, and every fact stays locked to the file.
-4. **Questions mid-call — real RAG over a PDF** — [`knowledge/*.pdf`](knowledge/) is chunked with a token-aware splitter (`js-tiktoken`, cl100k_base) and embedded with Gemini (`text-embedding-004`, free tier) into a local vector index (`data/rag-index.json`, cosine search — no server, see [`src/rag/`](src/rag/)). A caller's question is embedded the same way, matched against the index, and Groq writes the spoken answer grounded strictly in the retrieved chunks. Below the confidence floor, or if Groq can't ground an answer in the chunks, it says so → "I won't guess, that's what the demo covers." Run `npm run ingest` after changing the PDF.
+4. **Questions mid-call — real RAG over a PDF** — [`knowledge/*.pdf`](knowledge/) is chunked with a token-aware splitter (`js-tiktoken`, cl100k_base) and embedded with Gemini (`gemini-embedding-001`, free tier) into a local vector index (`data/rag-index.json`, cosine search — no server, see [`src/rag/`](src/rag/)). A caller's question is embedded the same way, matched against the index, and Groq writes the spoken answer grounded strictly in the retrieved chunks. Below the confidence floor, or if Groq can't ground an answer in the chunks, it says so → "I won't guess, that's what the demo covers." Run `npm run ingest` after changing the PDF.
 5. **Voice** — browser mic in; Sarvam Bulbul (native Hinglish) or free Edge neural voices out. Backchannels ("haan, samajh gaya…") are pre-recorded and play instantly while the real reply generates. Real phone calls via Vapi when keys are set.
-6. **After the call** — transcript, score, next action, and every question asked (with which FAQ entry answered it — or that none did, which is the list to grow the script from).
+6. **After the call** — transcript, score, next action, and every question asked (with which PDF chunk answered it via RAG — or that none did, which is the list to grow the PDF from).
 
 ## Edit the script
 
-Everything the agent says is in [`scripts/call-script.yaml`](scripts/call-script.yaml), written top to bottom like the call itself. Placeholders like `{name}`, `{company}`, `{calls}` fill in per lead; `topics:` maps a lead's industry to the story it hears. Add a question callers keep asking to `faq:` with a few `ask:` phrasings and it starts working on restart.
+Everything the agent's *scripted* lines say is in [`scripts/call-script.yaml`](scripts/call-script.yaml), written top to bottom like the call itself. Placeholders like `{name}`, `{company}`, `{calls}` fill in per lead; `topics:` maps a lead's industry to the story it hears. To teach it a new open-ended answer (pricing, features, company facts), add it to the PDF in `knowledge/` and run `npm run ingest` — see "PDF-backed RAG" below.
 
 ```bash
 npm test          # includes one test that renders every line in every language
@@ -71,6 +71,18 @@ Everything the agent *must* say (opening, pitch, close, objections) still comes 
 3. On a call, a caller's question is embedded the same way, matched against the index by cosine similarity, and Groq is asked to answer using **only** the retrieved chunks ([`src/rag/answer.ts`](src/rag/answer.ts)) — never inventing a fact, same guarantee the old scripted FAQ gave.
 
 No `GEMINI_API_KEY` / no index yet → the agent gives the honest "I don't know, here's what I can show you" pivot instead of guessing.
+
+## Frontend
+
+The UI is React + TypeScript + Tailwind, source in [`web/`](web/), built with Vite straight into `public/` — the Express server (`src/server.ts`) just does `express.static("public")` and needs no changes either way.
+
+```bash
+npm run web:install   # once, installs web/'s own deps
+npm run web:build     # rebuild public/ after changing anything in web/src
+npm run web:dev       # Vite dev server with hot reload, proxies /api to the backend on :3000
+```
+
+`npm run dev` (the backend) always serves whatever is currently built into `public/` — run `web:build` after editing the frontend, or use `web:dev` alongside the backend while actively working on UI. The delicate mic/speech-recognition/TTS logic lives in [`web/src/lib/voice.js`](web/src/lib/voice.js), framework-agnostic on purpose.
 
 ## Resume bullet
 

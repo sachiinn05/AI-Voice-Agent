@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-bg text-ink antialiased;
+    font-feature-settings: "cv11";
+  }
+}
+
+@keyframes wave-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+.animate-wave-pulse {
+  animation: wave-pulse 1.6s ease-in-out infinite;
+}

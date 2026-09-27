@@ -14,3 +14,6 @@ data/rag-index.json
 
 # Local voice A/B samples (npm run voices -- --sample)
 .voice-samples/
+
+# web/ (React frontend) build cache
+web/tsconfig.tsbuildinfo

@@ -13,7 +13,10 @@
     "tunnel": "ngrok http 3000",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "voices": "tsx scripts/voices.ts"
+    "voices": "tsx scripts/voices.ts",
+    "web:install": "cd web && npm install",
+    "web:dev": "cd web && npm run dev",
+    "web:build": "cd web && npm run build"
   },
   "dependencies": {
     "@types/express": "^5.0.6",
