@@ -22,9 +22,18 @@ export type Lead = {
   lead_source?: string;
   priority_tier?: string;
   gender?: string;
+  email?: string;
 };
 
-export type MeetingDetails = { date?: string; time?: string } | null | undefined;
+export type BookingInfo = {
+  via: "cal.com" | "logged";
+  start?: string;
+  uid?: string;
+  emailedTo?: string;
+  note?: string;
+};
+
+export type MeetingDetails = { date?: string; time?: string; booking?: BookingInfo } | null | undefined;
 
 export type CallResult = {
   call_id: string;

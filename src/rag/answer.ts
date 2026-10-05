@@ -70,7 +70,15 @@ export async function answerFromPdf(
   const index = await getIndex();
   if (!index || !index.chunks.length) return null;
 
-  const qvec = await embedOne(question);
+  let qvec: number[];
+  try {
+    qvec = await embedOne(question);
+  } catch {
+    // A live call must never crash on a Gemini blip (rate limit, network) —
+    // fall back to the honest "don't know" pivot, same as every other
+    // failure mode here.
+    return null;
+  }
   const hits = search(index, qvec, TOP_K);
   const best = hits[0];
   if (!best || best.score < FLOOR) return null;

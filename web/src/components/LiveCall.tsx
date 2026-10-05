@@ -76,6 +76,9 @@ export default function LiveCall({ onInCallChange }: { onInCallChange: (v: boole
   const [replyBarVisible, setReplyBarVisible] = useState(false);
   const [newCallVisible, setNewCallVisible] = useState(false);
   const [typedReply, setTypedReply] = useState("");
+  const [confirmEmail, setConfirmEmail] = useState("");
+  const [liveLog, setLiveLog] = useState<{ who: "agent" | "you"; text: string }[]>([]);
+  const logEndRef = useRef<HTMLDivElement>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const callIdRef = useRef<string | null>(null);
@@ -127,6 +130,10 @@ export default function LiveCall({ onInCallChange }: { onInCallChange: (v: boole
     inCallRef.current = inCall;
   }, [inCall]);
 
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [liveLog]);
+
   // --- derived ---------------------------------------------------------
   const currentAgent = useMemo(() => agents.find((a) => a.id === selectedAgentId) || null, [agents, selectedAgentId]);
 
@@ -153,6 +160,7 @@ export default function LiveCall({ onInCallChange }: { onInCallChange: (v: boole
     const lead = matchingLeads.find((l) => l.contact_number === number);
     if (!lead) return;
     setSelectedLead(lead);
+    setConfirmEmail(lead.email ?? "");
   }
 
   useEffect(() => {
@@ -234,6 +242,7 @@ export default function LiveCall({ onInCallChange }: { onInCallChange: (v: boole
 
   async function playAgent(text: string, viaKind: ReplyVia, faqId?: string | null) {
     setCaption(`Agent: ${text}`);
+    setLiveLog((l) => [...l, { who: "agent", text }]);
     setPhase("speaking");
     setVia({ via: viaKind, faqId });
     window.clearTimeout(silenceTimerRef.current);
@@ -248,6 +257,7 @@ export default function LiveCall({ onInCallChange }: { onInCallChange: (v: boole
     window.clearTimeout(silenceTimerRef.current);
     stopListening();
     setCaption(`You: ${said}`);
+    setLiveLog((l) => [...l, { who: "you", text: said }]);
 
     // Fire the request first, then fill the dead air with a short "right,
     // got it…" while it's in flight — hides the LLM+TTS round trip, which is
@@ -345,6 +355,8 @@ export default function LiveCall({ onInCallChange }: { onInCallChange: (v: boole
 
     setShowCallScreen(true);
     setNewCallVisible(false);
+    setLiveLog([]);
+    setTimerText("00:00");
 
     try {
       await unlockAudio();
@@ -365,7 +377,7 @@ export default function LiveCall({ onInCallChange }: { onInCallChange: (v: boole
     const res = await fetch("/api/simulate/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(lead),
+      body: JSON.stringify({ ...lead, email: confirmEmail.trim() }),
     });
     const data = await res.json();
     callIdRef.current = data.callId;
@@ -507,7 +519,15 @@ export default function LiveCall({ onInCallChange }: { onInCallChange: (v: boole
                     "Select an agent, then a lead, to continue."
                   ))}
               </p>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="email"
+                  value={confirmEmail}
+                  onChange={(e) => setConfirmEmail(e.target.value)}
+                  placeholder="Invite email (editable)"
+                  title="Auto-filled from the lead. Change it to your own address to receive the real calendar invite + reminder."
+                  className="w-52 rounded-lg border border-line bg-panel2 px-3 py-1.5 text-sm text-ink placeholder:text-muted focus:border-brand focus:outline-none"
+                />
                 <button
                   type="button"
                   disabled={testDisabled}
@@ -528,74 +548,141 @@ export default function LiveCall({ onInCallChange }: { onInCallChange: (v: boole
             </div>
           </div>
         ) : (
-          <div className="flex h-full flex-col items-center rounded-2xl border border-line bg-panel px-6 py-8 text-center">
-            <p className="text-sm text-muted">{PHASE_LABEL[phase]}</p>
-            <span className={`mt-2 rounded-full px-3 py-1 text-xs font-medium ${viaShown.tone}`}>{viaShown.text}</span>
-
-            <div className={`mt-6 rounded-full border-2 p-1 ${PHASE_RING[phase]}`}>
-              <canvas ref={canvasRef} width={320} height={72} className="block" />
+          <div className="call-stage relative flex h-full min-h-[560px] flex-col overflow-hidden rounded-3xl border border-line">
+            {/* status bar */}
+            <div className="flex items-center justify-between gap-2 px-5 pt-4 text-xs">
+              <span className="flex items-center gap-2 text-muted">
+                <span className={`h-2 w-2 rounded-full ${inCall ? "animate-pulse bg-brand" : "bg-danger"}`} />
+                {inCall ? "Connected" : "Call ended"}
+              </span>
+              <span className={`rounded-full px-2.5 py-1 font-medium ${viaShown.tone}`}>{viaShown.text}</span>
             </div>
 
-            <div className="mt-6 flex h-16 w-16 items-center justify-center rounded-full bg-line text-lg font-semibold text-ink">
-              AI
-            </div>
-            <h2 className="mt-3 text-lg font-semibold text-ink">{selectedLead?.contact_name || "Select a contact"}</h2>
-            <p className="text-xs text-muted">
-              {selectedLead ? `${selectedLead.company_name} · ${selectedLead.preferred_language}` : "Lipi.ai outbound voice agent"}
-            </p>
-            <p className="mt-1 font-mono text-sm text-muted">{timerText}</p>
-            <p className="mt-4 min-h-[2.5rem] max-w-md text-sm text-ink">{caption}</p>
-
-            {replyBarVisible && (
-              <form onSubmit={submitTyped} className="mt-4 flex w-full max-w-md items-center gap-2">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const ok = await ensureMic();
-                    if (!ok) {
-                      setCaption("Allow the microphone, or type okay in the box.");
-                      return;
-                    }
-                    listenAgain();
-                    setCaption("Listening… say okay.");
-                  }}
-                  className="rounded-lg border border-line px-3 py-2 text-xs text-ink hover:border-muted"
+            {/* avatar + identity */}
+            <div className="flex flex-col items-center px-6 pt-5 text-center">
+              <div className="relative flex h-28 w-28 items-center justify-center">
+                {(phase === "speaking" || phase === "ringing") && (
+                  <>
+                    <span className="ripple absolute inset-0 rounded-full border border-speak/60" />
+                    <span className="ripple absolute inset-0 rounded-full border border-speak/40 [animation-delay:0.8s]" />
+                  </>
+                )}
+                {phase === "listening" && <span className="ripple absolute inset-0 rounded-full border border-brand/60" />}
+                <span
+                  className={`relative flex h-24 w-24 items-center justify-center rounded-full border-2 bg-gradient-to-br from-panel2 to-line text-2xl font-semibold text-ink ${PHASE_RING[phase]}`}
                 >
-                  Talk
-                </button>
-                <input
-                  type="text"
-                  value={typedReply}
-                  onChange={(e) => setTypedReply(e.target.value)}
-                  placeholder="Type okay / haan if mic misses you"
-                  autoComplete="off"
-                  className="flex-1 rounded-lg border border-line bg-panel2 px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-brand focus:outline-none"
+                  {selectedLead ? initials(selectedLead.contact_name) : "AI"}
+                </span>
+              </div>
+              <h2 className="mt-4 text-xl font-semibold text-ink">{selectedLead?.contact_name || "Select a contact"}</h2>
+              <p className="text-xs text-muted">
+                {selectedLead
+                  ? `${selectedLead.contact_role ? selectedLead.contact_role + " · " : ""}${selectedLead.company_name}`
+                  : "Lipi.ai outbound voice agent"}
+              </p>
+              <p className="mt-1 font-mono text-lg tracking-wider text-ink">{timerText}</p>
+              <p className="mt-1 flex items-center gap-1.5 text-xs text-muted">
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    phase === "listening" ? "bg-brand" : phase === "speaking" || phase === "ringing" ? "bg-speak" : "bg-muted"
+                  }`}
                 />
-                <button type="submit" className="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-bg hover:brightness-110">
-                  Send
-                </button>
-              </form>
-            )}
+                {PHASE_LABEL[phase]}
+              </p>
+              <div className="mt-3 rounded-full border border-line/60 bg-bg/40 p-1">
+                <canvas ref={canvasRef} width={320} height={56} className="block max-w-full" />
+              </div>
+            </div>
 
-            <div className="mt-6 flex gap-3">
-              {hangupVisible && (
-                <button
-                  type="button"
-                  onClick={() => void hangup()}
-                  className="rounded-lg bg-danger px-4 py-2 text-sm font-semibold text-white hover:brightness-110"
-                >
-                  End
-                </button>
+            {/* live transcript */}
+            <div className="mx-4 mt-4 flex-1 rounded-2xl bg-bg/40 p-3">
+              <div className="flex max-h-56 min-h-[6rem] flex-col gap-2 overflow-y-auto">
+                {liveLog.length === 0 && <p className="m-auto text-xs text-muted">{caption}</p>}
+                {liveLog.map((m, i) => (
+                  <div key={i} className={`bubble flex ${m.who === "you" ? "justify-end" : "justify-start"}`}>
+                    <span
+                      className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm text-ink ${
+                        m.who === "you" ? "rounded-br-sm bg-brand/20" : "rounded-bl-sm bg-panel2"
+                      }`}
+                    >
+                      {m.text}
+                    </span>
+                  </div>
+                ))}
+                {liveLog.length > 0 && phase === "listening" && caption.startsWith("You:") && (
+                  <div className="flex justify-end">
+                    <span className="max-w-[80%] rounded-2xl rounded-br-sm border border-dashed border-brand/40 px-3 py-2 text-sm italic text-muted">
+                      {caption.replace(/^You:\s*/, "")}…
+                    </span>
+                  </div>
+                )}
+                <div ref={logEndRef} />
+              </div>
+            </div>
+
+            {/* controls */}
+            <div className="px-4 pb-5 pt-3">
+              {replyBarVisible && (
+                <form onSubmit={submitTyped} className="mb-4 flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={typedReply}
+                    onChange={(e) => setTypedReply(e.target.value)}
+                    placeholder="Type okay / haan if the mic misses you"
+                    autoComplete="off"
+                    className="flex-1 rounded-full border border-line bg-panel2 px-4 py-2 text-sm text-ink placeholder:text-muted focus:border-brand focus:outline-none"
+                  />
+                  <button
+                    type="submit"
+                    className="rounded-full bg-brand px-4 py-2 text-xs font-semibold text-bg hover:brightness-110"
+                  >
+                    Send
+                  </button>
+                </form>
               )}
-              {newCallVisible && (
-                <button
-                  type="button"
-                  onClick={resetToPicker}
-                  className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-bg hover:brightness-110"
-                >
-                  New call
-                </button>
-              )}
+              <div className="flex items-center justify-center gap-6">
+                {replyBarVisible && (
+                  <button
+                    type="button"
+                    title="Tap to talk"
+                    aria-label="Tap to talk"
+                    onClick={async () => {
+                      const ok = await ensureMic();
+                      if (!ok) {
+                        setCaption("Allow the microphone, or type okay in the box.");
+                        return;
+                      }
+                      listenAgain();
+                      setCaption("Listening… say okay.");
+                    }}
+                    className={`flex h-14 w-14 items-center justify-center rounded-full border text-xl transition hover:brightness-125 ${
+                      phase === "listening" ? "border-brand bg-brand/20" : "border-line bg-panel2"
+                    }`}
+                  >
+                    🎤
+                  </button>
+                )}
+                {hangupVisible && (
+                  <button
+                    type="button"
+                    title="End call"
+                    aria-label="End call"
+                    onClick={() => void hangup()}
+                    className="flex h-16 w-16 items-center justify-center rounded-full bg-danger text-2xl shadow-lg shadow-danger/30 transition hover:brightness-110"
+                  >
+                    <span className="rotate-[135deg]">📞</span>
+                  </button>
+                )}
+                {newCallVisible && (
+                  <button
+                    type="button"
+                    onClick={resetToPicker}
+                    className="rounded-full bg-brand px-6 py-3 text-sm font-semibold text-bg hover:brightness-110"
+                  >
+                    New call
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}

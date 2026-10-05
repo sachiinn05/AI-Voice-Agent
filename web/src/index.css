@@ -16,3 +16,22 @@
 .animate-wave-pulse {
   animation: wave-pulse 1.6s ease-in-out infinite;
 }
+
+@keyframes ripple {
+  0% { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(1.7); opacity: 0; }
+}
+.ripple { animation: ripple 2s ease-out infinite; }
+
+@keyframes bubble-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.bubble { animation: bubble-in 0.25s ease-out; }
+
+.call-stage {
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(90, 208, 255, 0.10), transparent 60%),
+    radial-gradient(100% 60% at 50% 100%, rgba(62, 224, 143, 0.06), transparent 60%),
+    #10151c;
+}

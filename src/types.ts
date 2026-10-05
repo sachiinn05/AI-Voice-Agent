@@ -27,6 +27,9 @@ export const LeadSchema = z.object({
   // caller directly ("rahe" vs "rahi"). Defaults to the script's existing
   // wording so a lead row without this column behaves exactly as before.
   gender: z.enum(["male", "female"]).default("male"),
+  // Where the calendar confirmation + reminder go. Optional: without it the
+  // meeting is recorded but no real calendar event is created.
+  email: z.string().optional(),
 });
 export type Lead = z.infer<typeof LeadSchema>;
 
@@ -78,6 +81,15 @@ export const CallResultSchema = z.object({
       time: z.string(),
       with: z.string(),
       calendly_url: z.string().optional(),
+      booking: z
+        .object({
+          via: z.enum(["cal.com", "logged"]),
+          start: z.string().optional(),
+          uid: z.string().optional(),
+          emailedTo: z.string().optional(),
+          note: z.string().optional(),
+        })
+        .optional(),
     })
     .nullable(),
   company_details_confirmed: z.array(z.string()),

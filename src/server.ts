@@ -13,7 +13,7 @@ import { dashboardRouter } from "./routes/dashboard.js";
 import { thinkingFillers } from "./script/lines.js";
 import { getScript } from "./script/scriptFile.js";
 import { createSession, endCallManually, nudge, startCall } from "./script/stateMachine.js";
-import { LeadSchema, PreferredLanguageSchema, type Session } from "./types.js";
+import { LeadSchema, PreferredLanguageSchema, type CallResult, type Session } from "./types.js";
 import { prewarmSpeech, synthesizeSpeech, ttsProviderFor } from "./tts.js";
 import { transcribeAudio } from "./stt.js";
 import { describeRouting, routeVoice } from "./voice/routing.js";
@@ -105,6 +105,15 @@ app.get("/api/fillers", (req, res) => {
   res.json({ language, fillers: thinkingFillers(language) });
 });
 
+/** Turn the slot agreed on the call into a real calendar booking and record the outcome on the call. */
+async function confirmBooking(session: Session, result: CallResult) {
+  if (!session.meetingSlot || !result.meeting_details) return;
+  result.meeting_details.booking = await bookSlot(session.meetingSlot, {
+    name: session.lead.contact_name,
+    email: session.lead.email,
+  });
+}
+
 app.post("/api/simulate/start", async (req, res) => {
   const parsed = LeadSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -145,9 +154,7 @@ app.post("/api/simulate/reply", async (req, res) => {
     if (result.compliance_flags.includes("do_not_call_requested")) {
       await addToDnc(session.lead.contact_number, "requested");
     }
-    if (session.meetingSlot) {
-      await bookSlot(session.meetingSlot, session.lead.contact_name);
-    }
+    await confirmBooking(session, result);
     await saveCall(result);
   }
   res.json({
@@ -202,6 +209,7 @@ app.post("/api/simulate/hangup", async (req, res) => {
   if (result.compliance_flags.includes("do_not_call_requested")) {
     await addToDnc(session.lead.contact_number, "requested");
   }
+  await confirmBooking(session, result);
   await saveCall(result);
   res.json({ callId, agent, ended: true, result });
 });

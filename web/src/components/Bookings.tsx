@@ -24,6 +24,13 @@ export default function Bookings() {
                 {b.contactName} · {b.companyName}
               </strong>
               <span className="text-muted">{slot || ""}</span>
+              {b.meeting?.booking?.via === "cal.com" ? (
+                <span className="mt-1 block text-brand">
+                  ✓ On the calendar{b.meeting.booking.emailedTo ? ` · invite + reminder sent to ${b.meeting.booking.emailedTo}` : ""}
+                </span>
+              ) : (
+                <span className="mt-1 block text-muted/70">Logged only{b.meeting?.booking?.note ? ` — ${b.meeting.booking.note}` : ""}</span>
+              )}
             </div>
           );
         })}

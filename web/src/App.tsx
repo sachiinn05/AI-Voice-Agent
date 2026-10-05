@@ -27,8 +27,9 @@ export default function App() {
     <div className="min-h-screen bg-bg text-ink">
       <header className="flex flex-col gap-4 border-b border-line px-6 py-6 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-brand">
-            Lipi.ai · One-company voice agent
+          <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-brand">
+            <span className={`h-2 w-2 rounded-full bg-brand ${inCall ? "animate-pulse" : ""}`} />
+            Lipi.ai · {inCall ? "Call in progress" : "Agent online"}
           </p>
           <h1 className="mt-1 text-2xl font-semibold text-ink">Company voice desk</h1>
           <p className="mt-2 max-w-xl text-sm text-muted">
